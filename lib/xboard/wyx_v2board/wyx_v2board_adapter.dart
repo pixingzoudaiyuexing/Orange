@@ -45,7 +45,28 @@ class SecureHttpWyxV2BoardClient implements WyxV2BoardSecureClient {
   }
 }
 
-class WyxV2BoardAdapter {
+abstract interface class WyxV2BoardAdapterApi {
+  WyxAuthSession? get currentSession;
+  bool get isLoggedIn;
+  void restoreSession(WyxAuthSession session);
+  Future<WyxLoginResult> login(String email, String password);
+  void logout();
+  Future<WyxUserInfo> getUserInfo();
+  Future<WyxSubscribeInfo> getSubscribeInfo();
+  Future<String?> getSubscribeUrl();
+  Future<List<WyxNodeInfo>> getNodeList();
+  Future<List<WyxPlanInfo>> getPlanList();
+  Future<List<WyxNotice>> getNoticeList();
+  Future<WyxInviteInfo> getInviteInfo();
+  Future<List<WyxOrderInfo>> getOrderList();
+  Future<WyxOrderInfo> getOrderDetail(String orderId);
+  Future<String> getPaymentRedirectUrl(String orderId);
+  Future<Object?> checkCoupon(String code);
+  Future<Object?> getClientAppConfig();
+  Future<Object?> getClientAppVersion();
+}
+
+class WyxV2BoardAdapter implements WyxV2BoardAdapterApi {
   final WyxV2BoardSecureClient _client;
   final SensitiveLogMasker _masker;
 
@@ -65,9 +86,17 @@ class WyxV2BoardAdapter {
           masker: masker,
         );
 
+  @override
   WyxAuthSession? get currentSession => _session;
+  @override
   bool get isLoggedIn => _session?.authData.isNotEmpty == true;
 
+  @override
+  void restoreSession(WyxAuthSession session) {
+    _session = session;
+  }
+
+  @override
   Future<WyxLoginResult> login(String email, String password) async {
     final response = await _post(
       WyxV2BoardApi.login,
@@ -97,15 +126,18 @@ class WyxV2BoardAdapter {
     return WyxLoginResult(session: session);
   }
 
+  @override
   void logout() {
     _session = null;
   }
 
+  @override
   Future<WyxUserInfo> getUserInfo() async {
     final response = await _get(WyxV2BoardApi.userInfo, operation: 'userInfo');
     return WyxV2BoardMapper.userInfo(_dataMap(response, operation: 'userInfo'));
   }
 
+  @override
   Future<WyxSubscribeInfo> getSubscribeInfo() async {
     final response = await _get(
       WyxV2BoardApi.subscribeInfo,
@@ -116,11 +148,13 @@ class WyxV2BoardAdapter {
     );
   }
 
+  @override
   Future<String?> getSubscribeUrl() async {
     final subscribeInfo = await getSubscribeInfo();
     return subscribeInfo.subscribeUrl;
   }
 
+  @override
   Future<List<WyxNodeInfo>> getNodeList() async {
     final response = await _get(WyxV2BoardApi.nodeList, operation: 'nodeList');
     return WyxV2BoardMapper.listMaps(_data(response))
@@ -128,6 +162,7 @@ class WyxV2BoardAdapter {
         .toList(growable: false);
   }
 
+  @override
   Future<List<WyxPlanInfo>> getPlanList() async {
     final response = await _get(WyxV2BoardApi.planList, operation: 'planList');
     return WyxV2BoardMapper.listMaps(_data(response))
@@ -135,6 +170,7 @@ class WyxV2BoardAdapter {
         .toList(growable: false);
   }
 
+  @override
   Future<List<WyxNotice>> getNoticeList() async {
     final response = await _get(
       WyxV2BoardApi.noticeList,
@@ -145,6 +181,7 @@ class WyxV2BoardAdapter {
         .toList(growable: false);
   }
 
+  @override
   Future<WyxInviteInfo> getInviteInfo() async {
     final response = await _get(
       WyxV2BoardApi.inviteInfo,
@@ -155,6 +192,7 @@ class WyxV2BoardAdapter {
     );
   }
 
+  @override
   Future<List<WyxOrderInfo>> getOrderList() async {
     final response = await _get(
       WyxV2BoardApi.orderList,
@@ -165,6 +203,7 @@ class WyxV2BoardAdapter {
         .toList(growable: false);
   }
 
+  @override
   Future<WyxOrderInfo> getOrderDetail(String orderId) async {
     final response = await _get(
       WyxV2BoardApi.orderDetail,
@@ -176,6 +215,7 @@ class WyxV2BoardAdapter {
     );
   }
 
+  @override
   Future<String> getPaymentRedirectUrl(String orderId) {
     throw const WyxV2BoardException(
       code: WyxV2BoardErrorCode.notImplemented,
@@ -184,6 +224,7 @@ class WyxV2BoardAdapter {
     );
   }
 
+  @override
   Future<Object?> checkCoupon(String code) {
     throw const WyxV2BoardException(
       code: WyxV2BoardErrorCode.notImplemented,
@@ -192,6 +233,7 @@ class WyxV2BoardAdapter {
     );
   }
 
+  @override
   Future<Object?> getClientAppConfig() {
     throw const WyxV2BoardException(
       code: WyxV2BoardErrorCode.notImplemented,
@@ -199,6 +241,7 @@ class WyxV2BoardAdapter {
     );
   }
 
+  @override
   Future<Object?> getClientAppVersion() {
     throw const WyxV2BoardException(
       code: WyxV2BoardErrorCode.notImplemented,

@@ -14,20 +14,23 @@ import 'package:fl_clash/xboard/domain/domain.dart';
 /// 负责存储和读取XBoard相关数据，如用户信息、订阅信息等
 class XBoardStorageService {
   final StorageInterface _storage;
-  
+
   XBoardStorageService(this._storage);
 
   // 存储键定义
   static const String _userEmailKey = 'xboard_user_email';
-  static const String _userInfoKey = 'xboard_user_info';  // 保留兼容
-  static const String _subscriptionInfoKey = 'xboard_subscription_info';  // 保留兼容
-  static const String _domainUserKey = 'xboard_domain_user';  // 新：领域模型
-  static const String _domainSubscriptionKey = 'xboard_domain_subscription';  // 新：领域模型
+  static const String _userInfoKey = 'xboard_user_info'; // 保留兼容
+  static const String _subscriptionInfoKey = 'xboard_subscription_info'; // 保留兼容
+  static const String _domainUserKey = 'xboard_domain_user'; // 新：领域模型
+  static const String _domainSubscriptionKey =
+      'xboard_domain_subscription'; // 新：领域模型
   static const String _tunFirstUseKey = 'xboard_tun_first_use_shown';
   static const String _savedEmailKey = 'xboard_saved_email';
   static const String _savedPasswordKey = 'xboard_saved_password';
   static const String _rememberPasswordKey = 'xboard_remember_password';
-
+  static const String _wyxAuthDataKey = 'wyx_v2board_auth_data';
+  static const String _wyxTokenKey = 'wyx_v2board_token';
+  static const String _wyxIsAdminKey = 'wyx_v2board_is_admin';
 
   Future<Result<bool>> saveUserEmail(String email) async {
     return await _storage.setString(_userEmailKey, email);
@@ -75,7 +78,8 @@ class XBoardStorageService {
 
   // ===== 领域模型：订阅信息 =====
 
-  Future<Result<bool>> saveDomainSubscription(DomainSubscription subscription) async {
+  Future<Result<bool>> saveDomainSubscription(
+      DomainSubscription subscription) async {
     try {
       final subscriptionJson = jsonEncode(subscription.toJson());
       return await _storage.setString(_domainSubscriptionKey, subscriptionJson);
@@ -96,7 +100,8 @@ class XBoardStorageService {
       success: (subscriptionJson) {
         if (subscriptionJson == null) return Result.success(null);
         try {
-          final Map<String, dynamic> subscriptionMap = jsonDecode(subscriptionJson);
+          final Map<String, dynamic> subscriptionMap =
+              jsonDecode(subscriptionJson);
           return Result.success(DomainSubscription.fromJson(subscriptionMap));
         } catch (e, stackTrace) {
           return Result.failure(XBoardParseException(
@@ -120,10 +125,13 @@ class XBoardStorageService {
       _storage.remove(_userEmailKey),
       _storage.remove(_userInfoKey),
       _storage.remove(_subscriptionInfoKey),
-      _storage.remove(_domainUserKey),  // 清理领域模型
-      _storage.remove(_domainSubscriptionKey),  // 清理领域模型
+      _storage.remove(_domainUserKey), // 清理领域模型
+      _storage.remove(_domainSubscriptionKey), // 清理领域模型
+      _storage.remove(_wyxAuthDataKey),
+      _storage.remove(_wyxTokenKey),
+      _storage.remove(_wyxIsAdminKey),
     ]);
-    
+
     final allSuccess = results.every((r) => r.dataOrNull == true);
     return Result.success(allSuccess);
   }
@@ -151,7 +159,7 @@ class XBoardStorageService {
       _storage.setString(_savedPasswordKey, rememberPassword ? password : ''),
       _storage.setBool(_rememberPasswordKey, rememberPassword),
     ]);
-    
+
     final allSuccess = results.every((r) => r.dataOrNull == true);
     return Result.success(allSuccess);
   }
@@ -160,7 +168,7 @@ class XBoardStorageService {
     final emailResult = await _storage.getString(_savedEmailKey);
     final passwordResult = await _storage.getString(_savedPasswordKey);
     final rememberResult = await _storage.getBool(_rememberPasswordKey);
-    
+
     return Result.success({
       'email': emailResult.dataOrNull,
       'password': passwordResult.dataOrNull,
@@ -190,9 +198,49 @@ class XBoardStorageService {
       _storage.remove(_savedPasswordKey),
       _storage.remove(_rememberPasswordKey),
     ]);
-    
+
+    final allSuccess = results.every((r) => r.dataOrNull == true);
+    return Result.success(allSuccess);
+  }
+
+  Future<Result<bool>> saveWyxAuthSession({
+    required String authData,
+    required String token,
+    required bool isAdmin,
+  }) async {
+    final results = await Future.wait([
+      _storage.setString(_wyxAuthDataKey, authData),
+      _storage.setString(_wyxTokenKey, token),
+      _storage.setBool(_wyxIsAdminKey, isAdmin),
+    ]);
+
+    final allSuccess = results.every((r) => r.dataOrNull == true);
+    return Result.success(allSuccess);
+  }
+
+  Future<Result<Map<String, dynamic>?>> getWyxAuthSession() async {
+    final authData = (await _storage.getString(_wyxAuthDataKey)).dataOrNull;
+    if (authData == null || authData.isEmpty) {
+      return Result.success(null);
+    }
+    final token = (await _storage.getString(_wyxTokenKey)).dataOrNull ?? '';
+    final isAdmin =
+        (await _storage.getBool(_wyxIsAdminKey)).dataOrNull ?? false;
+    return Result.success({
+      'authData': authData,
+      'token': token,
+      'isAdmin': isAdmin,
+    });
+  }
+
+  Future<Result<bool>> clearWyxAuthSession() async {
+    final results = await Future.wait([
+      _storage.remove(_wyxAuthDataKey),
+      _storage.remove(_wyxTokenKey),
+      _storage.remove(_wyxIsAdminKey),
+    ]);
+
     final allSuccess = results.every((r) => r.dataOrNull == true);
     return Result.success(allSuccess);
   }
 }
-

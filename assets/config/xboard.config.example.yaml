@@ -2,6 +2,11 @@
 # 复制此文件为 xboard.config.yaml 并修改相应配置
 
 xboard:
+  # 客户端业务后端类型
+  # 可选：xboard / v2board / xv2b / wyx_v2board
+  # wyx_v2board 会走 RemoteConfig -> SecureHttpClient -> WyxV2BoardAdapter
+  backend_type: xboard
+
   # 后端提供商类型
   # 可以是任意字符串，只要远程配置 JSON 的 panels 对象中有对应的键名
   # 例如: mihomo, 或自定义的任何名称
@@ -62,6 +67,5 @@ xboard:
       # 域名竞速测试 UA
       domain_racing_test: FlClash/1.0 (Domain Racing Test)
     
-
 
 

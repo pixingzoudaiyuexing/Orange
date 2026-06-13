@@ -268,6 +268,21 @@ extension ConfigFileLoaderHelper on ConfigFileLoader {
       return 'example.com';
     }
   }
+
+  /// 获取后端类型。
+  ///
+  /// 可选值示例：xboard、v2board、xv2b、wyx_v2board。
+  /// 未配置时返回空字符串，调用方可继续使用远程配置里的 panelType。
+  static Future<String> getBackendType() async {
+    try {
+      final config = await ConfigFileLoader.loadExtendedConfig();
+      final value =
+          config['backend_type'] as String? ?? config['backendType'] as String?;
+      return value?.trim() ?? '';
+    } catch (e) {
+      return '';
+    }
+  }
   
   /// 获取混淆前缀字符串
   /// 
@@ -291,4 +306,3 @@ extension ConfigFileLoaderHelper on ConfigFileLoader {
     }
   }
 }
-

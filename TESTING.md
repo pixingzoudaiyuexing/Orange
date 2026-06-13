@@ -96,3 +96,68 @@ dart analyze lib/xboard/wyx_v2board test/xboard/wyx_v2board
 10. `token`、`auth_data`、`authorization`、`subscribe_url`、`password` 脱敏。
 
 真实 staging 互通先通过 `tool/secure_v2_staging_check.dart` 验证 secure-v2 链路。Adapter staging 脚本后续接入时也必须从环境变量读取账号、公钥和安全中间件地址，不允许写入代码。
+
+## Wyx UI 数据层验证
+
+本阶段不打开真实 UI，只验证 SecureHttpClient + WyxV2BoardAdapter 取得的 UI 所需数据摘要：
+
+```bash
+dart format --set-exit-if-changed \
+  lib/xboard/wyx_v2board \
+  lib/xboard/features/auth/providers/xboard_user_provider.dart \
+  lib/xboard/features/initialization/providers/initialization_provider.dart \
+  lib/xboard/features/subscription/providers/xboard_subscription_provider.dart \
+  lib/xboard/features/notice/providers/notice_provider.dart \
+  lib/xboard/services/storage/xboard_storage_service.dart \
+  tool/wyx_v2board_ui_data_staging_check.dart
+
+flutter test test/security/secure_http_client_test.dart test/xboard/wyx_v2board/wyx_v2board_adapter_test.dart
+```
+
+可选 staging：
+
+```bash
+export SECURITY_BASE_URL="https://security.example.com"
+export SECURE_V2_KEY_ID="staging-2026-01"
+export SECURE_V2_PUBLIC_KEY="$(cat secure-v2-public.pem)"
+export TEST_USER_EMAIL="user@example.com"
+export TEST_USER_PASSWORD="replace-me"
+
+dart run tool/wyx_v2board_ui_data_staging_check.dart
+```
+
+该脚本验证：
+
+1. login
+2. home data
+3. subscribe data
+4. plan-list
+5. notice-list
+6. order-list
+7. node-list 摘要
+8. logout
+
+不要把真实账号、密码、公钥写进代码。
+
+## 当前 Freezed 生成链限制
+
+Orange 主项目存在既有生成链缺口：
+
+```bash
+dart run build_runner build
+```
+
+当前会输出：
+
+```text
+Ignoring options for unknown builder `freezed:freezed`
+Built ... wrote 0 outputs.
+```
+
+因此 `flutter analyze` 会在既有 Freezed 模型上报缺失 `generated/*.freezed.dart` / getter / `copyWith` 等问题，例如 `DomainUser`、`DomainSubscription`、`InitializationState`。本阶段没有做 Freezed 依赖迁移，因为：
+
+1. `freezed 2.x` 与当前 Flutter SDK 固定的 `test_api` / `test` 组合冲突。
+2. `freezed 3.x` 需要 `freezed_annotation 3.x`。
+3. 内置 `flutter_xboard_sdk` 固定 `freezed_annotation ^2.4.1`。
+
+后续如要完整跑通 UI widget/analyze，需要单独做 Orange 代码生成依赖整理。

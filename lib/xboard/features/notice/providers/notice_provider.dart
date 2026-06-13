@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/xboard/domain/domain.dart';
 import 'package:flutter_xboard_sdk/flutter_xboard_sdk.dart';
 import 'package:fl_clash/xboard/adapter/state/notice_state.dart';
+import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_backend.dart';
+import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_ui_controller.dart';
 
 /// 公告状态
 class NoticeState {
@@ -51,10 +53,17 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
   /// 获取公告列表
   Future<void> fetchNotices() async {
     if (state.isLoading) return;
-    
+
     state = state.copyWith(isLoading: true, error: null);
-    
+
     try {
+      if (await _ref.read(isWyxV2BoardBackendProvider.future)) {
+        final notices = await _ref
+            .read(wyxV2BoardUiControllerProvider.notifier)
+            .loadNotices();
+        state = state.copyWith(notices: notices, isLoading: false, error: null);
+        return;
+      }
       final noticeModels = await _ref.read(getNoticesProvider.future);
       final notices = noticeModels.map(_mapNotice).toList();
       state = state.copyWith(
@@ -67,6 +76,14 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
         error: e.toString(),
       );
     }
+  }
+
+  void setNoticesForWyx(List<DomainNotice> notices) {
+    state = state.copyWith(
+      notices: notices,
+      isLoading: false,
+      error: null,
+    );
   }
 
   /// 标记公告为已读
@@ -82,7 +99,8 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
 }
 
 /// 公告Provider实例
-final noticeProvider = StateNotifierProvider<NoticeNotifier, NoticeState>((ref) {
+final noticeProvider =
+    StateNotifierProvider<NoticeNotifier, NoticeState>((ref) {
   return NoticeNotifier(ref);
 });
 
@@ -91,11 +109,12 @@ DomainNotice _mapNotice(NoticeModel notice) {
     id: notice.id,
     title: notice.title,
     content: notice.content,
-    imageUrls: notice.imgUrl != null && notice.imgUrl!.isNotEmpty ? [notice.imgUrl!] : [],
+    imageUrls: notice.imgUrl != null && notice.imgUrl!.isNotEmpty
+        ? [notice.imgUrl!]
+        : [],
     tags: notice.tags ?? [],
     isVisible: notice.show,
     createdAt: DateTime.fromMillisecondsSinceEpoch(notice.createdAt * 1000),
     updatedAt: DateTime.fromMillisecondsSinceEpoch(notice.updatedAt * 1000),
   );
 }
-
