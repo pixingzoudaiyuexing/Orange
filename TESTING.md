@@ -4,8 +4,8 @@
 
 ```bash
 flutter pub get
-dart format --set-exit-if-changed lib/config lib/security test/config test/security
-flutter test test/config/remote_config_test.dart test/security/secure_http_client_test.dart
+dart format --set-exit-if-changed lib/config lib/security lib/xboard/wyx_v2board test/config test/security test/xboard/wyx_v2board
+flutter test test/config/remote_config_test.dart test/security/secure_http_client_test.dart test/xboard/wyx_v2board/wyx_v2board_adapter_test.dart
 flutter analyze
 ```
 
@@ -71,3 +71,28 @@ dart run tool/secure_v2_staging_check.dart
 11. `encryptedKey`
 12. `ciphertext`
 13. 完整邮箱
+
+## WyxV2BoardAdapter 测试
+
+本阶段只测试数据适配层，不需要真实账号：
+
+```bash
+dart format --set-exit-if-changed lib/xboard/wyx_v2board test/xboard/wyx_v2board
+flutter test test/xboard/wyx_v2board/wyx_v2board_adapter_test.dart
+dart analyze lib/xboard/wyx_v2board test/xboard/wyx_v2board
+```
+
+测试覆盖：
+
+1. 登录解析 `data.token` 和 `data.auth_data`。
+2. 登录后保存 `authData`。
+3. 用户接口使用 `Authorization: <auth_data 原值>`。
+4. 不给 `auth_data` 添加 `Bearer` 前缀。
+5. 订阅信息解析 `subscribe_url` 和套餐信息。
+6. `plan.content` 是 JSON 字符串时解析 feature。
+7. `plan.content` 异常时不崩溃。
+8. 节点、套餐、公告、订单列表解析。
+9. 403 转换为未登录或登录过期错误。
+10. `token`、`auth_data`、`authorization`、`subscribe_url`、`password` 脱敏。
+
+真实 staging 互通先通过 `tool/secure_v2_staging_check.dart` 验证 secure-v2 链路。Adapter staging 脚本后续接入时也必须从环境变量读取账号、公钥和安全中间件地址，不允许写入代码。
