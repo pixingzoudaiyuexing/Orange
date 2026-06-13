@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../core/core.dart';
+import '../../domain/domain.dart';
 import '../../features/profile/providers/profile_import_provider.dart';
 import '../../services/services.dart';
 import '../wyx_v2board.dart';
@@ -12,8 +14,8 @@ final _logger = FileLogger('wyx_v2board_ui_controller.dart');
 
 final wyxV2BoardUiControllerProvider =
     StateNotifierProvider<WyxV2BoardUiController, WyxV2BoardUiDataState>((ref) {
-  return WyxV2BoardUiController(ref);
-});
+      return WyxV2BoardUiController(ref);
+    });
 
 class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
   final Ref _ref;
@@ -40,11 +42,13 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       }
 
       final adapter = await _adapter();
-      adapter.restoreSession(WyxAuthSession(
-        token: sessionData['token'] as String? ?? '',
-        authData: authData,
-        isAdmin: sessionData['isAdmin'] as bool? ?? false,
-      ));
+      adapter.restoreSession(
+        WyxAuthSession(
+          token: sessionData['token'] as String? ?? '',
+          authData: authData,
+          isAdmin: sessionData['isAdmin'] as bool? ?? false,
+        ),
+      );
 
       final email = (await _storage.getUserEmail()).dataOrNull;
       final user = (await _storage.getDomainUser()).dataOrNull;
@@ -81,10 +85,7 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       );
       return false;
     } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: '网络连接失败，请稍后重试',
-      );
+      state = state.copyWith(isLoading: false, errorMessage: '网络连接失败，请稍后重试');
       return false;
     }
   }
@@ -108,9 +109,9 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
 
     if (importSubscription && subscription.subscribeUrl.isNotEmpty) {
       _logger.info('wyx_v2board importing subscription URL: [MASKED]');
-      _ref.read(profileImportProvider.notifier).importSubscription(
-            subscription.subscribeUrl,
-          );
+      _ref
+          .read(profileImportProvider.notifier)
+          .importSubscription(subscription.subscribeUrl);
     }
   }
 

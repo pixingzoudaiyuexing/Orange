@@ -38,6 +38,7 @@ migrate_working_dir/
 # Generated files (build_runner, freezed, etc.)
 *.g.dart
 *.freezed.dart
+!lib/**/generated/*.dart
 
 # Symbolication related
 app.*.symbols
@@ -66,6 +67,10 @@ app.*.map.json
 /xboard.config.yaml
 /xboard.config.yml
 assets/config/xboard.config.yaml
+
+# Local staging/test keys must never be committed.
+secure-v2-public.pem
+*.pem
 
 # 忽略证书文件
 assets/cer/

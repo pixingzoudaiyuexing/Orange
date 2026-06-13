@@ -16,7 +16,7 @@ part 'generated/profile.g.dart';
 typedef SelectedMap = Map<String, String>;
 
 @freezed
-class SubscriptionInfo with _$SubscriptionInfo {
+abstract class SubscriptionInfo with _$SubscriptionInfo {
   const factory SubscriptionInfo({
     @Default(0) int upload,
     @Default(0) int download,
@@ -45,7 +45,7 @@ class SubscriptionInfo with _$SubscriptionInfo {
 }
 
 @freezed
-class Profile with _$Profile {
+abstract class Profile with _$Profile {
   const factory Profile({
     required String id,
     String? label,
@@ -66,10 +66,7 @@ class Profile with _$Profile {
   factory Profile.fromJson(Map<String, Object?> json) =>
       _$ProfileFromJson(json);
 
-  factory Profile.normal({
-    String? label,
-    String url = '',
-  }) {
+  factory Profile.normal({String? label, String url = ''}) {
     return Profile(
       label: label,
       url: url,
@@ -80,7 +77,7 @@ class Profile with _$Profile {
 }
 
 @freezed
-class OverrideData with _$OverrideData {
+abstract class OverrideData with _$OverrideData {
   const factory OverrideData({
     @Default(false) bool enable,
     @Default(OverrideRule()) OverrideRule rule,
@@ -100,7 +97,7 @@ extension OverrideDataExt on OverrideData {
 }
 
 @freezed
-class OverrideRule with _$OverrideRule {
+abstract class OverrideRule with _$OverrideRule {
   const factory OverrideRule({
     @Default(OverrideRuleType.added) OverrideRuleType type,
     @Default([]) List<Rule> overrideRules,
@@ -113,9 +110,9 @@ class OverrideRule with _$OverrideRule {
 
 extension OverrideRuleExt on OverrideRule {
   List<Rule> get rules => switch (type == OverrideRuleType.override) {
-        true => overrideRules,
-        false => addedRules,
-      };
+    true => overrideRules,
+    false => addedRules,
+  };
 
   OverrideRule updateRules(List<Rule> Function(List<Rule> rules) builder) {
     if (type == OverrideRuleType.added) {

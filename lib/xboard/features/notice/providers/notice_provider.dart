@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:fl_clash/xboard/domain/domain.dart';
 import 'package:flutter_xboard_sdk/flutter_xboard_sdk.dart';
 import 'package:fl_clash/xboard/adapter/state/notice_state.dart';
@@ -66,24 +67,14 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
       }
       final noticeModels = await _ref.read(getNoticesProvider.future);
       final notices = noticeModels.map(_mapNotice).toList();
-      state = state.copyWith(
-        notices: notices,
-        isLoading: false,
-      );
+      state = state.copyWith(notices: notices, isLoading: false);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
   void setNoticesForWyx(List<DomainNotice> notices) {
-    state = state.copyWith(
-      notices: notices,
-      isLoading: false,
-      error: null,
-    );
+    state = state.copyWith(notices: notices, isLoading: false, error: null);
   }
 
   /// 标记公告为已读
@@ -99,8 +90,9 @@ class NoticeNotifier extends StateNotifier<NoticeState> {
 }
 
 /// 公告Provider实例
-final noticeProvider =
-    StateNotifierProvider<NoticeNotifier, NoticeState>((ref) {
+final noticeProvider = StateNotifierProvider<NoticeNotifier, NoticeState>((
+  ref,
+) {
   return NoticeNotifier(ref);
 });
 

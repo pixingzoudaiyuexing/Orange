@@ -4,84 +4,84 @@ part 'generated/plan.freezed.dart';
 part 'generated/plan.g.dart';
 
 /// 领域层：套餐模型
-/// 
+///
 /// 代表应用中"套餐/订阅计划"的概念
 @freezed
-class DomainPlan with _$DomainPlan {
+abstract class DomainPlan with _$DomainPlan {
   const factory DomainPlan({
     /// 套餐 ID
     required int id,
-    
+
     /// 套餐名称
     required String name,
-    
+
     /// 分组 ID
     required int groupId,
-    
+
     /// 流量配额（字节）
     required int transferQuota,
-    
+
     /// 套餐说明/描述
     String? description,
-    
+
     /// 标签列表
     @Default([]) List<String> tags,
-    
+
     /// 速度限制（Mbps）
     int? speedLimit,
-    
+
     /// 设备数量限制
     int? deviceLimit,
-    
+
     /// 是否显示
     @Default(true) bool isVisible,
-    
+
     /// 是否可续费
     @Default(true) bool renewable,
-    
+
     /// 排序值
     int? sort,
-    
+
     // ========== 价格信息（单位：元） ==========
-    
+
     /// 一次性购买价格
     double? onetimePrice,
-    
+
     /// 月付价格
     double? monthlyPrice,
-    
+
     /// 季付价格
     double? quarterlyPrice,
-    
+
     /// 半年付价格
     double? halfYearlyPrice,
-    
+
     /// 年付价格
     double? yearlyPrice,
-    
+
     /// 两年付价格
     double? twoYearPrice,
-    
+
     /// 三年付价格
     double? threeYearPrice,
-    
+
     /// 重置流量价格
     double? resetPrice,
-    
+
     /// 创建时间
     DateTime? createdAt,
-    
+
     /// 更新时间
     DateTime? updatedAt,
-    
+
     /// 元数据
     @Default({}) Map<String, dynamic> metadata,
   }) = _DomainPlan;
 
   const DomainPlan._();
 
-  factory DomainPlan.fromJson(Map<String, dynamic> json) => 
-    _$DomainPlanFromJson(json);
+  factory DomainPlan.fromJson(Map<String, dynamic> json) =>
+      _$DomainPlanFromJson(json);
 
   // ========== 业务逻辑 ==========
 
@@ -120,7 +120,7 @@ class DomainPlan with _$DomainPlan {
   /// 获取所有可用的支付周期
   List<PlanPeriod> get availablePeriods {
     final periods = <PlanPeriod>[];
-    
+
     if (onetimePrice != null && onetimePrice! > 0) {
       periods.add(PlanPeriod.onetime);
     }
@@ -142,7 +142,7 @@ class DomainPlan with _$DomainPlan {
     if (threeYearPrice != null && threeYearPrice! > 0) {
       periods.add(PlanPeriod.threeYear);
     }
-    
+
     return periods;
   }
 
@@ -192,7 +192,7 @@ enum PlanPeriod {
   reset('reset', '重置流量');
 
   const PlanPeriod(this.value, this.label);
-  
+
   final String value;
   final String label;
 

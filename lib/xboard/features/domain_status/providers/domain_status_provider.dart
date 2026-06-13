@@ -1,5 +1,6 @@
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../models/domain_status_state.dart';
 import '../services/domain_status_service.dart';
@@ -13,10 +14,11 @@ final domainStatusServiceProvider = Provider<DomainStatusService>((ref) {
 });
 
 /// 域名状态提供者
-final domainStatusProvider = StateNotifierProvider<DomainStatusNotifier, DomainStatusState>((ref) {
-  final service = ref.watch(domainStatusServiceProvider);
-  return DomainStatusNotifier(service: service);
-});
+final domainStatusProvider =
+    StateNotifierProvider<DomainStatusNotifier, DomainStatusState>((ref) {
+      final service = ref.watch(domainStatusServiceProvider);
+      return DomainStatusNotifier(service: service);
+    });
 
 /// 域名就绪状态提供者
 final domainReadyProvider = Provider<bool>((ref) {
@@ -34,10 +36,9 @@ final currentDomainProvider = Provider<String?>((ref) {
 class DomainStatusNotifier extends StateNotifier<DomainStatusState> {
   final DomainStatusService _service;
 
-  DomainStatusNotifier({
-    required DomainStatusService service,
-  }) : _service = service,
-       super(const DomainStatusState()) {
+  DomainStatusNotifier({required DomainStatusService service})
+    : _service = service,
+      super(const DomainStatusState()) {
     _initialize();
   }
 
@@ -63,16 +64,13 @@ class DomainStatusNotifier extends StateNotifier<DomainStatusState> {
       await _initialize();
     }
 
-    state = state.copyWith(
-      status: DomainStatus.checking,
-      errorMessage: null,
-    );
+    state = state.copyWith(status: DomainStatus.checking, errorMessage: null);
 
     try {
       _logger.info('开始检查域名');
-      
+
       final result = await _service.checkDomainStatus();
-      
+
       if (!mounted) return;
 
       if (result['success'] == true) {
@@ -80,8 +78,11 @@ class DomainStatusNotifier extends StateNotifier<DomainStatusState> {
           status: DomainStatus.success,
           currentDomain: result['domain'] as String?,
           latency: result['latency'] as int?,
-          availableDomains: (result['availableDomains'] as List<dynamic>?)
-              ?.map((e) => e.toString()).toList() ?? [],
+          availableDomains:
+              (result['availableDomains'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
           lastChecked: DateTime.now(),
           errorMessage: null,
         );
@@ -96,7 +97,7 @@ class DomainStatusNotifier extends StateNotifier<DomainStatusState> {
       }
     } catch (e) {
       if (!mounted) return;
-      
+
       _logger.error('域名检查异常', e);
       state = state.copyWith(
         status: DomainStatus.failed,
@@ -115,9 +116,7 @@ class DomainStatusNotifier extends StateNotifier<DomainStatusState> {
     } catch (e) {
       _logger.error('刷新失败', e);
       if (mounted) {
-        state = state.copyWith(
-          errorMessage: '刷新失败: $e',
-        );
+        state = state.copyWith(errorMessage: '刷新失败: $e');
       }
     }
   }

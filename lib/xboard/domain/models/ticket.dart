@@ -5,40 +5,40 @@ part 'generated/ticket.g.dart';
 
 /// 领域层：工单模型
 @freezed
-class DomainTicket with _$DomainTicket {
+abstract class DomainTicket with _$DomainTicket {
   const factory DomainTicket({
     /// 工单 ID
     required int id,
-    
+
     /// 标题
     required String subject,
-    
+
     /// 优先级（低=0, 中=1, 高=2）
     @Default(1) int priority,
-    
+
     /// 状态
     required TicketStatus status,
-    
+
     /// 消息列表
     @Default([]) List<TicketMessage> messages,
-    
+
     /// 创建时间
     required DateTime createdAt,
-    
+
     /// 更新时间
     DateTime? updatedAt,
-    
+
     /// 关闭时间
     DateTime? closedAt,
-    
+
     /// 元数据
     @Default({}) Map<String, dynamic> metadata,
   }) = _DomainTicket;
 
   const DomainTicket._();
 
-  factory DomainTicket.fromJson(Map<String, dynamic> json) => 
-    _$DomainTicketFromJson(json);
+  factory DomainTicket.fromJson(Map<String, dynamic> json) =>
+      _$DomainTicketFromJson(json);
 }
 
 /// DomainTicket 扩展方法
@@ -79,15 +79,15 @@ extension DomainTicketX on DomainTicket {
 enum TicketStatus {
   /// 待处理
   pending(0, '待处理'),
-  
+
   /// 已回复
   replied(1, '已回复'),
-  
+
   /// 已关闭
   closed(2, '已关闭');
 
   const TicketStatus(this.code, this.label);
-  
+
   final int code;
   final String label;
 
@@ -101,34 +101,34 @@ enum TicketStatus {
 
 /// 工单消息模型
 @freezed
-class TicketMessage with _$TicketMessage {
+abstract class TicketMessage with _$TicketMessage {
   const factory TicketMessage({
     /// 消息 ID
     required int id,
-    
+
     /// 消息内容
     required String content,
-    
+
     /// 是否来自用户
     @Default(true) bool isFromUser,
-    
+
     /// 是否已读
     @Default(false) bool isRead,
-    
+
     /// 附件列表
     @Default([]) List<String> attachments,
-    
+
     /// 创建时间
     required DateTime createdAt,
-    
+
     /// 元数据
     @Default({}) Map<String, dynamic> metadata,
   }) = _TicketMessage;
 
   const TicketMessage._();
 
-  factory TicketMessage.fromJson(Map<String, dynamic> json) => 
-    _$TicketMessageFromJson(json);
+  factory TicketMessage.fromJson(Map<String, dynamic> json) =>
+      _$TicketMessageFromJson(json);
 }
 
 /// TicketMessage 扩展方法

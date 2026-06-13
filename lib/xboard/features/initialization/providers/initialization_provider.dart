@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/features/domain_status/providers/domain_status_provider.dart';
 import 'package:fl_clash/xboard/features/domain_status/models/domain_status_state.dart';
@@ -155,8 +156,8 @@ class XBoardInitializationNotifier extends StateNotifier<InitializationState> {
 /// XBoard 统一初始化 Provider
 final initializationProvider =
     StateNotifierProvider<XBoardInitializationNotifier, InitializationState>(
-  (ref) => XBoardInitializationNotifier(ref),
-);
+      (ref) => XBoardInitializationNotifier(ref),
+    );
 
 /// 便捷 Provider: 是否已初始化
 final isInitializedProvider = Provider<bool>((ref) {

@@ -1,18 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:fl_clash/xboard/features/profile/profile.dart';
 import 'package:fl_clash/xboard/features/profile/services/profile_import_service.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 
 // 初始化文件级日志器
 final _logger = FileLogger('profile_import_provider.dart');
+
 class ProfileImportNotifier extends StateNotifier<ImportState> {
   final Ref _ref;
-  
+
   ProfileImportNotifier(this._ref) : super(const ImportState());
-  
-  Future<bool> importSubscription(String url, {bool forceRefresh = false}) async {
+
+  Future<bool> importSubscription(
+    String url, {
+    bool forceRefresh = false,
+  }) async {
     _logger.info('开始导入订阅: $url, forceRefresh: $forceRefresh');
-    
+
     state = state.copyWith(
       status: ImportStatus.downloading,
       isImporting: true,
@@ -20,11 +25,11 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
       message: '开始导入订阅',
       currentUrl: url,
     );
-    
+
     try {
       // 使用实际的导入服务
       final importService = _ref.read(xboardProfileImportServiceProvider);
-      
+
       final result = await importService.importSubscription(
         url,
         onProgress: (status, progress, message) {
@@ -35,7 +40,7 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
           );
         },
       );
-        
+
       state = state.copyWith(
         status: result.isSuccess ? ImportStatus.success : ImportStatus.failed,
         isImporting: false,
@@ -44,7 +49,7 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
         lastSuccessTime: result.isSuccess ? DateTime.now() : null,
         lastResult: result,
       );
-      
+
       return result.isSuccess;
     } catch (e) {
       state = state.copyWith(
@@ -56,6 +61,7 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
       return false;
     }
   }
+
   Future<bool> retryLastImport() async {
     final url = state.currentUrl;
     if (url == null || url.isEmpty) {
@@ -65,6 +71,7 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
     _logger.info('重试导入: $url');
     return await importSubscription(url);
   }
+
   void cancelImport() {
     if (state.isImporting) {
       state = state.copyWith(
@@ -75,10 +82,12 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
     }
     _logger.info('请求取消导入操作');
   }
+
   void clearState() {
     state = const ImportState();
     _logger.info('请求清除导入状态');
   }
+
   void clearError() {
     if (state.lastResult?.isSuccess == false) {
       state = state.copyWith(
@@ -88,19 +97,31 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
       );
     }
   }
+
   bool get hasError => state.lastResult?.isSuccess == false;
   String? get errorMessage => state.lastResult?.errorMessage;
   ImportErrorType? get errorType => state.lastResult?.errorType;
   bool get canRetry => hasError && state.currentUrl?.isNotEmpty == true;
 }
-final profileImportProvider = StateNotifierProvider<ProfileImportNotifier, ImportState>((ref) {
-  return ProfileImportNotifier(ref);
-});
+
+final profileImportProvider =
+    StateNotifierProvider<ProfileImportNotifier, ImportState>((ref) {
+      return ProfileImportNotifier(ref);
+    });
+
 extension ProfileImportProviderExtension on WidgetRef {
   ImportState get importState => watch(profileImportProvider);
-  ProfileImportNotifier get importNotifier => read(profileImportProvider.notifier);
-  bool get isImporting => watch(profileImportProvider.select((state) => state.isImporting));
-  double get importProgress => watch(profileImportProvider.select((state) => state.progress));
-  String get importStatusText => watch(profileImportProvider.select((state) => state.statusText));
-  bool get hasImportError => watch(profileImportProvider.select((state) => state.lastResult?.isSuccess == false));
-} 
+  ProfileImportNotifier get importNotifier =>
+      read(profileImportProvider.notifier);
+  bool get isImporting =>
+      watch(profileImportProvider.select((state) => state.isImporting));
+  double get importProgress =>
+      watch(profileImportProvider.select((state) => state.progress));
+  String get importStatusText =>
+      watch(profileImportProvider.select((state) => state.statusText));
+  bool get hasImportError => watch(
+    profileImportProvider.select(
+      (state) => state.lastResult?.isSuccess == false,
+    ),
+  );
+}

@@ -4,74 +4,74 @@ part 'generated/user.freezed.dart';
 part 'generated/user.g.dart';
 
 /// 领域层：用户模型（统一数据模型）
-/// 
+///
 /// 这是业务核心模型，完全独立于任何 SDK 实现
 /// 代表应用中"用户"的概念
 @freezed
-class DomainUser with _$DomainUser {
+abstract class DomainUser with _$DomainUser {
   const factory DomainUser({
     /// 用户邮箱（唯一标识）
     required String email,
-    
+
     /// UUID（通用唯一标识符）
     required String uuid,
-    
+
     /// 头像 URL
     required String avatarUrl,
-    
+
     /// 套餐 ID（可能为空，新注册用户尚未购买套餐时为 null）
     int? planId,
-    
+
     /// 总流量限制（字节）
     required int transferLimit,
-    
+
     /// 已用上传流量（字节）
     required int uploadedBytes,
-    
+
     /// 已用下载流量（字节）
     required int downloadedBytes,
-    
+
     /// 账户余额（分）
     required int balanceInCents,
-    
+
     /// 佣金余额（分）
     required int commissionBalanceInCents,
-    
+
     /// 过期时间
     DateTime? expiredAt,
-    
+
     /// 上次登录时间
     DateTime? lastLoginAt,
-    
+
     /// 创建时间
     DateTime? createdAt,
-    
+
     /// 是否被封禁
     @Default(false) bool banned,
-    
+
     /// 到期提醒
     @Default(true) bool remindExpire,
-    
+
     /// 流量提醒
     @Default(true) bool remindTraffic,
-    
+
     /// 折扣率（0-1）
     double? discount,
-    
+
     /// 佣金比例（0-1）
     double? commissionRate,
-    
+
     /// Telegram ID
     String? telegramId,
-    
+
     /// 元数据（存储 SDK 特有字段）
     @Default({}) Map<String, dynamic> metadata,
   }) = _DomainUser;
 
   const DomainUser._();
 
-  factory DomainUser.fromJson(Map<String, dynamic> json) => 
-    _$DomainUserFromJson(json);
+  factory DomainUser.fromJson(Map<String, dynamic> json) =>
+      _$DomainUserFromJson(json);
 
   // ========== 业务逻辑（Getter） ==========
 
@@ -116,7 +116,8 @@ class DomainUser with _$DomainUser {
   String formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(2)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 

@@ -5,55 +5,55 @@ part 'generated/subscription.g.dart';
 
 /// 领域层：订阅模型
 @freezed
-class DomainSubscription with _$DomainSubscription {
+abstract class DomainSubscription with _$DomainSubscription {
   const factory DomainSubscription({
     /// 订阅 URL
     required String subscribeUrl,
-    
+
     /// 用户邮箱
     required String email,
-    
+
     /// UUID
     required String uuid,
-    
+
     /// 套餐 ID
     required int planId,
-    
+
     /// 套餐名称
     String? planName,
-    
+
     /// Token
     String? token,
-    
+
     /// 总流量限制（字节）
     required int transferLimit,
-    
+
     /// 已用上传（字节）
     required int uploadedBytes,
-    
+
     /// 已用下载（字节）
     required int downloadedBytes,
-    
+
     /// 速度限制（Mbps）
     int? speedLimit,
-    
+
     /// 设备数量限制
     int? deviceLimit,
-    
+
     /// 过期时间
     DateTime? expiredAt,
-    
+
     /// 下次重置时间
     DateTime? nextResetAt,
-    
+
     /// 元数据
     @Default({}) Map<String, dynamic> metadata,
   }) = _DomainSubscription;
 
   const DomainSubscription._();
 
-  factory DomainSubscription.fromJson(Map<String, dynamic> json) => 
-    _$DomainSubscriptionFromJson(json);
+  factory DomainSubscription.fromJson(Map<String, dynamic> json) =>
+      _$DomainSubscriptionFromJson(json);
 }
 
 /// DomainSubscription 扩展方法

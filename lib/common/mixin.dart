@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:riverpod/riverpod.dart';
 import 'context.dart';
 
-mixin AutoDisposeNotifierMixin<T> on AutoDisposeNotifier<T> {
+mixin AutoDisposeNotifierMixin<T> on AnyNotifier<T, T> {
   set value(T value) {
     state = value;
   }
@@ -33,11 +33,7 @@ mixin PageMixin<T extends StatefulWidget> on State<T> {
       commonScaffoldState?.onKeywordsUpdate = onKeywordsUpdate;
       commonScaffoldState?.leading = leading;
       commonScaffoldState?.updateSearchState(
-        (_) => onSearch != null
-            ? AppBarSearchState(
-                onSearch: onSearch!,
-              )
-            : null,
+        (_) => onSearch != null ? AppBarSearchState(onSearch: onSearch!) : null,
       );
     });
   }

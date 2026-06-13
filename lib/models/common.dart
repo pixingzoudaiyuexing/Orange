@@ -11,7 +11,7 @@ part 'generated/common.freezed.dart';
 part 'generated/common.g.dart';
 
 @freezed
-class NavigationItem with _$NavigationItem {
+abstract class NavigationItem with _$NavigationItem {
   const factory NavigationItem({
     required Icon icon,
     required PageLabel label,
@@ -25,7 +25,7 @@ class NavigationItem with _$NavigationItem {
 }
 
 @freezed
-class Package with _$Package {
+abstract class Package with _$Package {
   const factory Package({
     required String packageName,
     required String label,
@@ -39,7 +39,7 @@ class Package with _$Package {
 }
 
 @freezed
-class Metadata with _$Metadata {
+abstract class Metadata with _$Metadata {
   const factory Metadata({
     required int uid,
     required String network,
@@ -57,7 +57,7 @@ class Metadata with _$Metadata {
 }
 
 @freezed
-class Connection with _$Connection {
+abstract class Connection with _$Connection {
   const factory Connection({
     required String id,
     num? upload,
@@ -93,16 +93,14 @@ String _logDateTime(_) {
 // }
 
 @freezed
-class Log with _$Log {
+abstract class Log with _$Log {
   const factory Log({
     @JsonKey(name: "LogLevel") @Default(LogLevel.app) LogLevel logLevel,
     @JsonKey(name: "Payload") @Default("") String payload,
     @JsonKey(fromJson: _logDateTime) required String dateTime,
   }) = _Log;
 
-  factory Log.app(
-    String payload,
-  ) {
+  factory Log.app(String payload) {
     return Log(
       payload: payload,
       dateTime: _logDateTime(null),
@@ -114,7 +112,7 @@ class Log with _$Log {
 }
 
 @freezed
-class LogsState with _$LogsState {
+abstract class LogsState with _$LogsState {
   const factory LogsState({
     @Default([]) List<Log> logs,
     @Default([]) List<String> keywords,
@@ -126,19 +124,17 @@ class LogsState with _$LogsState {
 extension LogsStateExt on LogsState {
   List<Log> get list {
     final lowQuery = query.toLowerCase();
-    return logs.where(
-      (log) {
-        final logLevelName = log.logLevel.name;
-        return {logLevelName}.containsAll(keywords) &&
-            ((log.payload.toLowerCase().contains(lowQuery)) ||
-                logLevelName.contains(lowQuery));
-      },
-    ).toList();
+    return logs.where((log) {
+      final logLevelName = log.logLevel.name;
+      return {logLevelName}.containsAll(keywords) &&
+          ((log.payload.toLowerCase().contains(lowQuery)) ||
+              logLevelName.contains(lowQuery));
+    }).toList();
   }
 }
 
 @freezed
-class ConnectionsState with _$ConnectionsState {
+abstract class ConnectionsState with _$ConnectionsState {
   const factory ConnectionsState({
     @Default([]) List<Connection> connections,
     @Default([]) List<String> keywords,
@@ -172,7 +168,7 @@ extension ConnectionsStateExt on ConnectionsState {
 const defaultDavFileName = "backup.zip";
 
 @freezed
-class DAV with _$DAV {
+abstract class DAV with _$DAV {
   const factory DAV({
     required String uri,
     required String user,
@@ -184,11 +180,9 @@ class DAV with _$DAV {
 }
 
 @freezed
-class FileInfo with _$FileInfo {
-  const factory FileInfo({
-    required int size,
-    required DateTime lastModified,
-  }) = _FileInfo;
+abstract class FileInfo with _$FileInfo {
+  const factory FileInfo({required int size, required DateTime lastModified}) =
+      _FileInfo;
 }
 
 extension FileInfoExt on FileInfo {
@@ -197,7 +191,7 @@ extension FileInfoExt on FileInfo {
 }
 
 @freezed
-class VersionInfo with _$VersionInfo {
+abstract class VersionInfo with _$VersionInfo {
   const factory VersionInfo({
     @Default("") String clashName,
     @Default("") String version,
@@ -213,17 +207,14 @@ class Traffic {
   TrafficValue down;
 
   Traffic({int? up, int? down})
-      : id = DateTime.now().millisecondsSinceEpoch,
-        up = TrafficValue(value: up),
-        down = TrafficValue(value: down);
+    : id = DateTime.now().millisecondsSinceEpoch,
+      up = TrafficValue(value: up),
+      down = TrafficValue(value: down);
 
   num get speed => up.value + down.value;
 
   factory Traffic.fromMap(Map<String, dynamic> map) {
-    return Traffic(
-      up: map['up'],
-      down: map['down'],
-    );
+    return Traffic(up: map['up'], down: map['down']);
   }
 
   @override
@@ -249,14 +240,11 @@ class TrafficValueShow {
   final double value;
   final TrafficUnit unit;
 
-  const TrafficValueShow({
-    required this.value,
-    required this.unit,
-  });
+  const TrafficValueShow({required this.value, required this.unit});
 }
 
 @freezed
-class Proxy with _$Proxy {
+abstract class Proxy with _$Proxy {
   const factory Proxy({
     required String name,
     required String type,
@@ -267,7 +255,7 @@ class Proxy with _$Proxy {
 }
 
 @freezed
-class Group with _$Group {
+abstract class Group with _$Group {
   const factory Group({
     required GroupType type,
     @Default([]) List<Proxy> all,
@@ -331,7 +319,9 @@ class TrafficValue {
     }
     if (_value > pow(1024, 2)) {
       return TrafficValueShow(
-          value: _value / pow(1024, 2), unit: TrafficUnit.MB);
+        value: _value / pow(1024, 2),
+        unit: TrafficUnit.MB,
+      );
     }
     if (_value > pow(1024, 1)) {
       return TrafficValueShow(
@@ -339,10 +329,7 @@ class TrafficValue {
         unit: TrafficUnit.KB,
       );
     }
-    return TrafficValueShow(
-      value: _value.toDouble(),
-      unit: TrafficUnit.B,
-    );
+    return TrafficValueShow(value: _value.toDouble(), unit: TrafficUnit.B);
   }
 
   @override
@@ -362,7 +349,7 @@ class TrafficValue {
 }
 
 @freezed
-class ColorSchemes with _$ColorSchemes {
+abstract class ColorSchemes with _$ColorSchemes {
   const factory ColorSchemes({
     ColorScheme? lightColorScheme,
     ColorScheme? darkColorScheme,
@@ -403,63 +390,38 @@ class IpInfo {
   final String ip;
   final String countryCode;
 
-  const IpInfo({
-    required this.ip,
-    required this.countryCode,
-  });
+  const IpInfo({required this.ip, required this.countryCode});
 
   static IpInfo fromIpInfoIoJson(Map<String, dynamic> json) {
     return switch (json) {
-      {
-        "ip": final String ip,
-        "country": final String country,
-      } =>
-        IpInfo(
-          ip: ip,
-          countryCode: country,
-        ),
+      {"ip": final String ip, "country": final String country} => IpInfo(
+        ip: ip,
+        countryCode: country,
+      ),
       _ => throw const FormatException("invalid json"),
     };
   }
 
   static IpInfo fromIpApiCoJson(Map<String, dynamic> json) {
     return switch (json) {
-      {
-        "ip": final String ip,
-        "country_code": final String countryCode,
-      } =>
-        IpInfo(
-          ip: ip,
-          countryCode: countryCode,
-        ),
+      {"ip": final String ip, "country_code": final String countryCode} =>
+        IpInfo(ip: ip, countryCode: countryCode),
       _ => throw const FormatException("invalid json"),
     };
   }
 
   static IpInfo fromIpSbJson(Map<String, dynamic> json) {
     return switch (json) {
-      {
-        "ip": final String ip,
-        "country_code": final String countryCode,
-      } =>
-        IpInfo(
-          ip: ip,
-          countryCode: countryCode,
-        ),
+      {"ip": final String ip, "country_code": final String countryCode} =>
+        IpInfo(ip: ip, countryCode: countryCode),
       _ => throw const FormatException("invalid json"),
     };
   }
 
   static IpInfo fromIpwhoIsJson(Map<String, dynamic> json) {
     return switch (json) {
-      {
-        "ip": final String ip,
-        "country_code": final String countryCode,
-      } =>
-        IpInfo(
-          ip: ip,
-          countryCode: countryCode,
-        ),
+      {"ip": final String ip, "country_code": final String countryCode} =>
+        IpInfo(ip: ip, countryCode: countryCode),
       _ => throw const FormatException("invalid json"),
     };
   }
@@ -471,7 +433,7 @@ class IpInfo {
 }
 
 @freezed
-class HotKeyAction with _$HotKeyAction {
+abstract class HotKeyAction with _$HotKeyAction {
   const factory HotKeyAction({
     required HotAction action,
     int? key,
@@ -485,7 +447,7 @@ class HotKeyAction with _$HotKeyAction {
 typedef Validator = String? Function(String? value);
 
 @freezed
-class Field with _$Field {
+abstract class Field with _$Field {
   const factory Field({
     required String label,
     required String value,
@@ -493,10 +455,7 @@ class Field with _$Field {
   }) = _Field;
 }
 
-enum PopupMenuItemType {
-  primary,
-  danger,
-}
+enum PopupMenuItemType { primary, danger }
 
 class PopupMenuItemData {
   const PopupMenuItemData({
@@ -511,7 +470,7 @@ class PopupMenuItemData {
 }
 
 @freezed
-class TextPainterParams with _$TextPainterParams {
+abstract class TextPainterParams with _$TextPainterParams {
   const factory TextPainterParams({
     required String? text,
     required double? fontSize,
@@ -529,24 +488,18 @@ class CloseWindowIntent extends Intent {
 }
 
 @freezed
-class Result<T> with _$Result<T> {
+abstract class Result<T> with _$Result<T> {
   const factory Result({
     required T? data,
     required ResultType type,
     required String message,
   }) = _Result;
 
-  factory Result.success(T data) => Result(
-        data: data,
-        type: ResultType.success,
-        message: "",
-      );
+  factory Result.success(T data) =>
+      Result(data: data, type: ResultType.success, message: "");
 
-  factory Result.error(String message) => Result(
-        data: null,
-        type: ResultType.error,
-        message: message,
-      );
+  factory Result.error(String message) =>
+      Result(data: null, type: ResultType.error, message: message);
 }
 
 extension ResultExt on Result {
@@ -556,22 +509,15 @@ extension ResultExt on Result {
 }
 
 @freezed
-class Script with _$Script {
+abstract class Script with _$Script {
   const factory Script({
     required String id,
     required String label,
     required String content,
   }) = _Script;
 
-  factory Script.create({
-    required String label,
-    required String content,
-  }) {
-    return Script(
-      id: utils.uuidV4,
-      label: label,
-      content: content,
-    );
+  factory Script.create({required String label, required String content}) {
+    return Script(id: utils.uuidV4, label: label, content: content);
   }
 
   factory Script.fromJson(Map<String, Object?> json) => _$ScriptFromJson(json);
