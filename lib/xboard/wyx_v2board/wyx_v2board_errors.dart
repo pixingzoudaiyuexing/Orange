@@ -30,7 +30,9 @@ class WyxV2BoardException implements Exception {
       message: 'Secure request failed',
       statusCode: error.statusCode,
       requestId: error.requestId,
-      safeDebugMessage: error.code.name,
+      safeDebugMessage: error.safeDebugMessage.isEmpty
+          ? error.code.name
+          : error.safeDebugMessage,
     );
   }
 
