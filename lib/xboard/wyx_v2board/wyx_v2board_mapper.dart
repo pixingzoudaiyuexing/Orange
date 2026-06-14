@@ -37,6 +37,7 @@ class WyxV2BoardMapper {
       deviceLimit: integer(json['device_limit']),
       email: string(json['email']),
       uuid: string(json['uuid']),
+      planName: string(json['plan_name']) ?? string(json['planName']),
       plan: planJson is Map ? planInfo(planJson) : null,
       aliveIp: integer(json['alive_ip']) ?? 0,
       subscribeUrl: string(json['subscribe_url']),

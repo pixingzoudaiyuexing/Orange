@@ -1,16 +1,21 @@
 import 'package:fl_clash/security/security.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/domain/domain.dart';
-import 'package:fl_clash/xboard/features/auth/providers/xboard_user_provider.dart';
+import 'package:fl_clash/xboard/features/auth/auth.dart';
 import 'package:fl_clash/xboard/features/notice/providers/notice_provider.dart';
 import 'package:fl_clash/xboard/features/subscription/providers/xboard_subscription_provider.dart';
 import 'package:fl_clash/xboard/infrastructure/infrastructure.dart';
 import 'package:fl_clash/xboard/services/services.dart';
+import 'package:fl_clash/xboard/features/subscription/widgets/subscription_usage_card.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_backend.dart';
+import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_domain_mapper.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_providers.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_ui_controller.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_ui_helpers.dart';
 import 'package:fl_clash/xboard/wyx_v2board/wyx_v2board.dart';
+import 'package:fl_clash/l10n/l10n.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,6 +41,64 @@ void main() {
       expect(display.expiredText, '长期有效');
       expect(display.toSafeMap().toString(), isNot(contains('secret-token')));
       expect(display.toSafeMap().toString(), isNot(contains('subscribe')));
+    });
+
+    test('builds staging package data for home display', () {
+      final subscription = _domainSubscription(
+        subscribeUrl: 'https://security.example/sub?token=secret-token',
+        planName: 'Plus 专业型月循环周期',
+        transferLimit: 375809638400,
+        uploadedBytes: 54438,
+        downloadedBytes: 79883,
+        expiredAt: DateTime.parse('2026-07-01T06:47:15.000Z'),
+        aliveIp: 0,
+        resetDay: 17,
+      );
+      final user = _domainUser(banned: false);
+
+      final display = WyxHomeDisplayData.from(
+        user: user,
+        subscription: subscription,
+      );
+
+      expect(display.planName, 'Plus 专业型月循环周期');
+      expect(display.totalBytes, 375809638400);
+      expect(display.usedBytes, 134321);
+      expect(display.remainingBytes, 375809504079);
+      expect(display.totalText, '350 GB');
+      expect(display.usedText, '131 KB');
+      expect(display.remainingText, '350 GB');
+      expect(display.expiredText, '2026-07-01');
+      expect(display.aliveIpText, '0 台在线');
+      expect(display.resetDayText, '每月 17 日');
+      expect(display.statusText, '账号正常');
+      expect(display.toSafeMap().toString(), isNot(contains('token=')));
+      expect(display.toSafeMap().toString(), isNot(contains('subscribe')));
+    });
+
+    test('uses fallback plan name when plan object is absent', () {
+      const subscribe = WyxSubscribeInfo(
+        planId: 3,
+        planName: 'Plus 专业型月循环周期',
+        token: 'subscribe-token',
+        upload: 54438,
+        download: 79883,
+        transferEnable: 375809638400,
+        email: 'user@example.com',
+        uuid: 'uuid-1',
+        aliveIp: 0,
+        subscribeUrl: 'https://security.example/sub?token=secret-token',
+      );
+
+      final subscription = WyxV2BoardDomainMapper.subscription(subscribe);
+      final display = WyxHomeDisplayData.from(
+        user: _domainUser(banned: false),
+        subscription: subscription,
+      );
+
+      expect(subscription.planName, 'Plus 专业型月循环周期');
+      expect(display.planName, isNot('暂无套餐'));
+      expect(display.planName, 'Plus 专业型月循环周期');
     });
 
     test('maps secure and adapter errors to safe Chinese messages', () {
@@ -89,6 +152,67 @@ void main() {
       expect(summary.region, 'HK');
       expect(summary.toString(), isNot(contains('hidden-node.example.com')));
     });
+  });
+
+  group('SubscriptionUsageCard', () {
+    testWidgets(
+      'shows wyx package when profile subscription is not imported yet',
+      (tester) async {
+        final subscription = _domainSubscription(
+          planName: 'Plus 专业型月循环周期',
+          transferLimit: 375809638400,
+          uploadedBytes: 54438,
+          downloadedBytes: 79883,
+          expiredAt: DateTime.parse('2026-07-01T06:47:15.000Z'),
+          aliveIp: 0,
+          resetDay: 17,
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              xboardUserProvider.overrideWith(() {
+                return _StaticAuthNotifier(
+                  UserAuthState(
+                    isAuthenticated: true,
+                    isInitialized: true,
+                    email: 'user@example.com',
+                    userInfo: _domainUser(banned: false),
+                    subscriptionInfo: subscription,
+                  ),
+                );
+              }),
+            ],
+            child: MaterialApp(
+              locale: const Locale('zh', 'CN'),
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: AppLocalizations.delegate.supportedLocales,
+              home: Scaffold(
+                body: SubscriptionUsageCard(
+                  userInfo: _domainUser(banned: false),
+                  subscriptionInfo: subscription,
+                  profileSubscriptionInfo: null,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Plus 专业型月循环周期'), findsOneWidget);
+        expect(find.text('无可用套餐'), findsNothing);
+        expect(find.text('请购买套餐后使用'), findsNothing);
+        expect(find.textContaining('350 GB'), findsWidgets);
+        expect(find.textContaining('剩余 350 GB'), findsOneWidget);
+        expect(find.textContaining('token='), findsNothing);
+        expect(find.textContaining('subscribe'), findsNothing);
+      },
+    );
   });
 
   group('WyxV2Board UI providers', () {
@@ -475,14 +599,28 @@ class _MemoryStorage implements StorageInterface {
   }
 }
 
-DomainUser _domainUser({bool banned = false}) {
+class _StaticAuthNotifier extends XBoardUserAuthNotifier {
+  final UserAuthState _initialState;
+
+  _StaticAuthNotifier(this._initialState);
+
+  @override
+  UserAuthState build() => _initialState;
+}
+
+DomainUser _domainUser({
+  bool banned = false,
+  int transferLimit = 1000,
+  int uploadedBytes = 100,
+  int downloadedBytes = 200,
+}) {
   return DomainUser(
     email: 'user@example.com',
     uuid: 'uuid-1',
     avatarUrl: '',
-    transferLimit: 1000,
-    uploadedBytes: 100,
-    downloadedBytes: 200,
+    transferLimit: transferLimit,
+    uploadedBytes: uploadedBytes,
+    downloadedBytes: downloadedBytes,
     balanceInCents: 0,
     commissionBalanceInCents: 0,
     banned: banned,
@@ -490,21 +628,33 @@ DomainUser _domainUser({bool banned = false}) {
   );
 }
 
-DomainSubscription _domainSubscription({String subscribeUrl = ''}) {
+DomainSubscription _domainSubscription({
+  String subscribeUrl = '',
+  String planName = 'Pro',
+  int transferLimit = 1000,
+  int uploadedBytes = 100,
+  int downloadedBytes = 200,
+  DateTime? expiredAt,
+  int aliveIp = 2,
+  int resetDay = 15,
+}) {
   return DomainSubscription(
     subscribeUrl: subscribeUrl,
     email: 'user@example.com',
     uuid: 'uuid-1',
     planId: 3,
-    planName: 'Pro',
+    planName: planName,
     token: 'subscribe-token',
-    transferLimit: 1000,
-    uploadedBytes: 100,
-    downloadedBytes: 200,
+    transferLimit: transferLimit,
+    uploadedBytes: uploadedBytes,
+    downloadedBytes: downloadedBytes,
     deviceLimit: 3,
-    metadata: const {
-      'alive_ip': 2,
-      'reset_day': 15,
+    expiredAt: expiredAt,
+    metadata: const {'allow_new_period': 'month'},
+  ).copyWith(
+    metadata: {
+      'alive_ip': aliveIp,
+      'reset_day': resetDay,
       'allow_new_period': 'month',
     },
   );

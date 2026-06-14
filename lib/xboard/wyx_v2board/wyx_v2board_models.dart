@@ -64,6 +64,7 @@ class WyxSubscribeInfo {
   final int? deviceLimit;
   final String? email;
   final String? uuid;
+  final String? planName;
   final WyxPlanInfo? plan;
   final int aliveIp;
   final String? subscribeUrl;
@@ -80,6 +81,7 @@ class WyxSubscribeInfo {
     this.deviceLimit,
     this.email,
     this.uuid,
+    this.planName,
     this.plan,
     required this.aliveIp,
     this.subscribeUrl,
@@ -149,10 +151,7 @@ class WyxPlanFeature {
   final String feature;
   final bool support;
 
-  const WyxPlanFeature({
-    required this.feature,
-    required this.support,
-  });
+  const WyxPlanFeature({required this.feature, required this.support});
 }
 
 class WyxNotice {

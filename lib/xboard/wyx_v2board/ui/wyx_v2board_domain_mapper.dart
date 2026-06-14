@@ -34,7 +34,7 @@ class WyxV2BoardDomainMapper {
       email: subscribe.email ?? '',
       uuid: subscribe.uuid ?? '',
       planId: subscribe.planId ?? 0,
-      planName: subscribe.plan?.name,
+      planName: subscribe.plan?.name ?? subscribe.planName,
       token: subscribe.token,
       transferLimit: subscribe.transferEnable,
       uploadedBytes: subscribe.upload,
@@ -78,10 +78,7 @@ class WyxV2BoardDomainMapper {
       metadata: {
         'source': 'wyx_v2board',
         'features': plan.features
-            .map((item) => {
-                  'feature': item.feature,
-                  'support': item.support,
-                })
+            .map((item) => {'feature': item.feature, 'support': item.support})
             .toList(growable: false),
       },
     );

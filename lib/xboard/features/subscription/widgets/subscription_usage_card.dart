@@ -29,6 +29,7 @@ class SubscriptionUsageCard extends ConsumerWidget {
       subscriptionStatus = subscriptionStatusService.checkSubscriptionStatus(
         userState: userState,
         profileSubscriptionInfo: profileSubscriptionInfo,
+        domainSubscription: subscriptionInfo,
       );
     }
     if (profileSubscriptionInfo == null &&
