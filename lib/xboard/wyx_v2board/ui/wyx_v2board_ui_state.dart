@@ -10,6 +10,7 @@ class WyxV2BoardUiDataState {
   final List<DomainNotice> notices;
   final List<WyxOrderInfo> orders;
   final List<WyxNodeInfo> nodes;
+  final bool nodesLoaded;
   final DateTime? lastUpdated;
 
   const WyxV2BoardUiDataState({
@@ -21,6 +22,7 @@ class WyxV2BoardUiDataState {
     this.notices = const [],
     this.orders = const [],
     this.nodes = const [],
+    this.nodesLoaded = false,
     this.lastUpdated,
   });
 
@@ -33,6 +35,7 @@ class WyxV2BoardUiDataState {
     List<DomainNotice>? notices,
     List<WyxOrderInfo>? orders,
     List<WyxNodeInfo>? nodes,
+    bool? nodesLoaded,
     DateTime? lastUpdated,
   }) {
     return WyxV2BoardUiDataState(
@@ -44,6 +47,7 @@ class WyxV2BoardUiDataState {
       notices: notices ?? this.notices,
       orders: orders ?? this.orders,
       nodes: nodes ?? this.nodes,
+      nodesLoaded: nodesLoaded ?? this.nodesLoaded,
       lastUpdated: lastUpdated ?? this.lastUpdated,
     );
   }

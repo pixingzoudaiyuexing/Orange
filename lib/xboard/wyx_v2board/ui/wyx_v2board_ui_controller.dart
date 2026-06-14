@@ -8,6 +8,7 @@ import '../../services/services.dart';
 import '../wyx_v2board.dart';
 import 'wyx_v2board_domain_mapper.dart';
 import 'wyx_v2board_providers.dart';
+import 'wyx_v2board_ui_helpers.dart';
 import 'wyx_v2board_ui_state.dart';
 
 final _logger = FileLogger('wyx_v2board_ui_controller.dart');
@@ -81,37 +82,50 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
     } on WyxV2BoardException catch (error) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: _friendlyError(error),
+        errorMessage: WyxV2BoardUiErrorMapper.message(error),
       );
       return false;
-    } catch (_) {
-      state = state.copyWith(isLoading: false, errorMessage: '网络连接失败，请稍后重试');
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: WyxV2BoardUiErrorMapper.message(error),
+      );
       return false;
     }
   }
 
   Future<void> loadHomeData({bool importSubscription = false}) async {
-    final adapter = await _adapter();
-    final userFuture = adapter.getUserInfo();
-    final subscriptionFuture = adapter.getSubscribeInfo();
-    final results = await Future.wait([userFuture, subscriptionFuture]);
-    final userInfo = results[0] as WyxUserInfo;
-    final subscribeInfo = results[1] as WyxSubscribeInfo;
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final adapter = await _adapter();
+      final userFuture = adapter.getUserInfo();
+      final subscriptionFuture = adapter.getSubscribeInfo();
+      final results = await Future.wait([userFuture, subscriptionFuture]);
+      final userInfo = results[0] as WyxUserInfo;
+      final subscribeInfo = results[1] as WyxSubscribeInfo;
 
-    final subscription = WyxV2BoardDomainMapper.subscription(subscribeInfo);
-    final user = WyxV2BoardDomainMapper.user(
-      userInfo,
-      subscribe: subscribeInfo,
-    );
-    await _storage.saveDomainUser(user);
-    await _storage.saveDomainSubscription(subscription);
-    _publishHomeData(user: user, subscription: subscription);
+      final subscription = WyxV2BoardDomainMapper.subscription(subscribeInfo);
+      final user = WyxV2BoardDomainMapper.user(
+        userInfo,
+        subscribe: subscribeInfo,
+      );
+      await _storage.saveDomainUser(user);
+      await _storage.saveDomainSubscription(subscription);
+      _publishHomeData(user: user, subscription: subscription);
+      state = state.copyWith(isLoading: false, errorMessage: null);
 
-    if (importSubscription && subscription.subscribeUrl.isNotEmpty) {
-      _logger.info('wyx_v2board importing subscription URL: [MASKED]');
-      _ref
-          .read(profileImportProvider.notifier)
-          .importSubscription(subscription.subscribeUrl);
+      if (importSubscription && subscription.subscribeUrl.isNotEmpty) {
+        _logger.info('wyx_v2board importing subscription URL: [MASKED]');
+        _ref
+            .read(profileImportProvider.notifier)
+            .importSubscription(subscription.subscribeUrl);
+      }
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: WyxV2BoardUiErrorMapper.message(error),
+      );
+      rethrow;
     }
   }
 
@@ -126,13 +140,24 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
   }
 
   Future<List<DomainNotice>> loadNotices() async {
-    final adapter = await _adapter();
-    final notices = (await adapter.getNoticeList())
-        .map(WyxV2BoardDomainMapper.notice)
-        .where((notice) => notice.isVisible)
-        .toList(growable: false);
-    state = state.copyWith(notices: notices, lastUpdated: DateTime.now());
-    return notices;
+    try {
+      final adapter = await _adapter();
+      final notices = (await adapter.getNoticeList())
+          .map(WyxV2BoardDomainMapper.notice)
+          .where((notice) => notice.isVisible)
+          .toList(growable: false);
+      state = state.copyWith(
+        notices: notices,
+        errorMessage: null,
+        lastUpdated: DateTime.now(),
+      );
+      return notices;
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: WyxV2BoardUiErrorMapper.message(error),
+      );
+      rethrow;
+    }
   }
 
   Future<List<WyxOrderInfo>> loadOrders() async {
@@ -143,10 +168,25 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
   }
 
   Future<List<WyxNodeInfo>> loadNodes() async {
-    final adapter = await _adapter();
-    final nodes = await adapter.getNodeList();
-    state = state.copyWith(nodes: nodes, lastUpdated: DateTime.now());
-    return nodes;
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final adapter = await _adapter();
+      final nodes = await adapter.getNodeList();
+      state = state.copyWith(
+        isLoading: false,
+        nodes: nodes,
+        nodesLoaded: true,
+        lastUpdated: DateTime.now(),
+      );
+      return nodes;
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        nodesLoaded: true,
+        errorMessage: WyxV2BoardUiErrorMapper.message(error),
+      );
+      rethrow;
+    }
   }
 
   Future<void> logout() async {
@@ -171,23 +211,6 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       subscription: subscription,
       lastUpdated: DateTime.now(),
     );
-  }
-
-  String _friendlyError(WyxV2BoardException error) {
-    switch (error.code) {
-      case WyxV2BoardErrorCode.unauthenticated:
-        return '登录状态已过期，请重新登录';
-      case WyxV2BoardErrorCode.loginFailed:
-        return '邮箱或密码错误';
-      case WyxV2BoardErrorCode.secureTransport:
-        return '安全连接失败，请检查网络';
-      case WyxV2BoardErrorCode.backendError:
-        return error.message.isEmpty ? '服务器维护中，请稍后再试' : error.message;
-      case WyxV2BoardErrorCode.invalidResponse:
-        return '服务器响应异常，请稍后重试';
-      case WyxV2BoardErrorCode.notImplemented:
-        return '当前功能暂未开放';
-    }
   }
 
   String _maskEmail(String? email) {

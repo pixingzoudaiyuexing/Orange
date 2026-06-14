@@ -1,15 +1,19 @@
 import 'package:fl_clash/pages/pages.dart';
 import 'package:fl_clash/xboard/features/auth/providers/xboard_user_provider.dart';
+import 'package:fl_clash/security/security.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 class SubscriptionPage extends ConsumerStatefulWidget {
   const SubscriptionPage({super.key});
   @override
   ConsumerState<SubscriptionPage> createState() => _SubscriptionPageState();
 }
+
 class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
+  static const _masker = SensitiveLogMasker();
   bool _isLoading = false;
   String? _subscriptionUrl;
   String? _errorMessage;
@@ -18,6 +22,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
     super.initState();
     _loadSubscriptionInfo();
   }
+
   Future<void> _loadSubscriptionInfo() async {
     setState(() {
       _isLoading = true;
@@ -27,7 +32,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
       // 使用 xboardUserProvider 获取订阅信息
       final userAuthState = ref.read(xboardUserProvider);
       final subscriptionInfo = userAuthState.subscriptionInfo;
-      
+
       if (mounted) {
         setState(() {
           _subscriptionUrl = subscriptionInfo?.subscribeUrl;
@@ -43,27 +48,37 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
       }
     }
   }
+
   Future<void> _refreshSubscription() async {
     await _loadSubscriptionInfo();
   }
+
   void _copyToClipboard() async {
     if (_subscriptionUrl != null) {
-      await Clipboard.setData(
-        ClipboardData(text: _subscriptionUrl!),
-      );
+      await Clipboard.setData(ClipboardData(text: _subscriptionUrl!));
       // 复制操作日志 (UI层)
       if (mounted) {
-        XBoardNotification.showSuccess('订阅链接已复制到剪贴板');
+        XBoardNotification.showSuccess('订阅链接已复制，请勿泄露订阅链接');
       }
     }
   }
+
+  String _maskedSubscriptionUrl() {
+    final url = _subscriptionUrl;
+    if (url == null || url.isEmpty) {
+      return '未获取到订阅链接';
+    }
+    return _masker
+        .maskText('subscribe_url=$url')
+        .replaceFirst('subscribe_url=', '');
+  }
+
   void _navigateToHome() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => const HomePage(),
-      ),
+      MaterialPageRoute(builder: (context) => const HomePage()),
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,10 +89,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
             icon: const Icon(Icons.refresh),
             onPressed: _refreshSubscription,
           ),
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: _navigateToHome,
-          ),
+          IconButton(icon: const Icon(Icons.home), onPressed: _navigateToHome),
         ],
       ),
       body: Padding(
@@ -104,11 +116,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
                     else if (_errorMessage != null)
                       Column(
                         children: [
-                          const Icon(
-                            Icons.error,
-                            color: Colors.red,
-                            size: 48,
-                          ),
+                          const Icon(Icons.error, color: Colors.red, size: 48),
                           const SizedBox(height: 16),
                           Text(
                             '获取订阅信息失败',
@@ -135,7 +143,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            '订阅链接:',
+                            '订阅链接',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -151,12 +159,17 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
                               border: Border.all(color: Colors.grey.shade300),
                             ),
                             child: Text(
-                              _subscriptionUrl!,
+                              _maskedSubscriptionUrl(),
                               style: const TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 14,
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            '完整订阅链接仅在点击复制时使用，请勿泄露订阅链接。',
+                            style: TextStyle(fontSize: 13),
                           ),
                           const SizedBox(height: 16),
                           Row(
@@ -199,10 +212,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      '1. 复制上方的订阅链接',
-                      style: TextStyle(fontSize: 14),
-                    ),
+                    const Text('1. 复制上方的订阅链接', style: TextStyle(fontSize: 14)),
                     const SizedBox(height: 8),
                     const Text(
                       '2. 在配置文件中添加此订阅链接',
@@ -224,10 +234,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
                       ),
                       child: const Text(
                         '提示: 请妥善保管您的订阅链接，不要分享给他人',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.blue, fontSize: 14),
                       ),
                     ),
                   ],
