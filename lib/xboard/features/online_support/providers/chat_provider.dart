@@ -451,7 +451,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 final apiServiceProvider = Provider<CustomerSupportApiService>((ref) {
   final apiBaseUrl = CustomerSupportServiceConfig.apiBaseUrl;
   if (apiBaseUrl == null) {
-    throw Exception(appLocalizations.onlineSupportApiConfigNotFound);
+    _logger.warning('在线客服 API 配置缺失，在线客服功能已禁用');
+    return CustomerSupportApiService.disabled();
   }
   return CustomerSupportApiService(baseUrl: apiBaseUrl);
 });
@@ -459,7 +460,8 @@ final apiServiceProvider = Provider<CustomerSupportApiService>((ref) {
 final wsServiceProvider = Provider<CustomerSupportWebSocketService>((ref) {
   final wsBaseUrl = CustomerSupportServiceConfig.wsBaseUrl;
   if (wsBaseUrl == null) {
-    throw Exception(appLocalizations.onlineSupportWebSocketConfigNotFound);
+    _logger.warning('在线客服 WebSocket 配置缺失，在线客服自动连接已禁用');
+    return CustomerSupportWebSocketService.disabled();
   }
 
   final service = CustomerSupportWebSocketService(baseWsUrl: wsBaseUrl);
@@ -484,6 +486,9 @@ final wsConnectionStatusProvider = StreamProvider<WebSocketStatus>((
 
   // 先 yield 当前状态
   yield wsService.currentStatus;
+  if (!wsService.isEnabled) {
+    return;
+  }
 
   // 然后监听后续状态变化
   await for (final status in wsService.statusStream) {

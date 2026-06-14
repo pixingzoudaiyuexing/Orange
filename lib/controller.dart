@@ -156,9 +156,14 @@ class AppController {
   }
 
   updateLocalIp() async {
-    _ref.read(localIpProvider.notifier).value = null;
-    await Future.delayed(commonDuration);
-    _ref.read(localIpProvider.notifier).value = await utils.getLocalIpAddress();
+    try {
+      _ref.read(localIpProvider.notifier).value = null;
+      await Future.delayed(commonDuration);
+      final localIp = await utils.getLocalIpAddress();
+      _ref.read(localIpProvider.notifier).value = localIp;
+    } catch (e) {
+      commonPrint.log('updateLocalIp skipped: provider ref is no longer active');
+    }
   }
 
   Future<void> updateProfile(Profile profile) async {
@@ -623,7 +628,7 @@ class AppController {
   }
 
   Future<bool> showDisclaimer() async {
-    return await globalState.showCommonDialog<bool>(
+    final accepted = await globalState.showCommonDialog<bool>(
           dismissible: false,
           child: CommonDialog(
             title: appLocalizations.disclaimer,
@@ -648,8 +653,12 @@ class AppController {
               appLocalizations.disclaimerDesc,
             ),
           ),
-        ) ??
-        false;
+        );
+    if (accepted == null) {
+      commonPrint.log('showDisclaimer skipped: dialog context is not ready');
+      return true;
+    }
+    return accepted;
   }
 
   _handlerDisclaimer() async {

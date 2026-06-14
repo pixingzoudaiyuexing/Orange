@@ -65,6 +65,7 @@ class WebSocketMessage {
 /// 客服系统WebSocket服务类
 class CustomerSupportWebSocketService {
   final String baseWsUrl;
+  final bool isEnabled;
   WebSocketChannel? _channel;
   final StreamController<WebSocketMessage> _messageController =
       StreamController<WebSocketMessage>.broadcast();
@@ -91,7 +92,11 @@ class CustomerSupportWebSocketService {
 
   CustomerSupportWebSocketService({
     required this.baseWsUrl,
-  });
+  }) : isEnabled = true;
+
+  CustomerSupportWebSocketService.disabled()
+      : baseWsUrl = '',
+        isEnabled = false;
 
   /// 更新连接状态(内部辅助方法)
   void _updateStatus(WebSocketStatus status) {
@@ -104,6 +109,10 @@ class CustomerSupportWebSocketService {
     bool forceReconnect = false,
     bool isReconnect = false,
   }) async {
+    if (!isEnabled) {
+      _logger.warning('在线客服 WebSocket 未配置，跳过自动连接');
+      return;
+    }
     if (_isDisposed) return;
     if (_isConnected && !forceReconnect) {
       _logger.warning('WebSocket已连接，请先断开');

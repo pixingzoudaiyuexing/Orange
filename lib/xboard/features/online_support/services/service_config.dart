@@ -1,7 +1,6 @@
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/config/core/service_locator.dart';
 import 'package:fl_clash/xboard/config/services/online_support_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_xboard_sdk/flutter_xboard_sdk.dart';
 
 // 初始化文件级日志器
@@ -39,7 +38,7 @@ class CustomerSupportServiceConfig {
   static Future<String?> getUserToken() async {
     try {
       final token = await XBoardSDK.instance.getToken();
-      _logger.debug('getUserToken() 获取到的token: $token');
+      _logger.debug('getUserToken() tokenAvailable=${token != null}');
       return token;
     } catch (e) {
       _logger.error('getUserToken() 获取token失败', e);

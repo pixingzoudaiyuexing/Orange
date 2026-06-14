@@ -20,6 +20,10 @@ final _logger = FileLogger('websocket_auto_connector.dart');
 /// 4. 初始化时检查当前认证状态,如果已登录则立即连接
 final webSocketAutoConnectorProvider = Provider<void>((ref) {
   final wsService = ref.watch(wsServiceProvider);
+  if (!wsService.isEnabled) {
+    _logger.warning('在线客服 WebSocket 未配置，跳过自动连接器初始化');
+    return;
+  }
 
   // 监听认证状态变化
   ref.listen<UserAuthState>(

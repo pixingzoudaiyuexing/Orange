@@ -164,6 +164,7 @@ class LocalIp extends _$LocalIp with AutoDisposeNotifierMixin {
 
   @override
   onUpdate(value) {
+    if (!ref.mounted) return;
     globalState.appState = globalState.appState.copyWith(
       localIp: value,
     );
@@ -171,7 +172,9 @@ class LocalIp extends _$LocalIp with AutoDisposeNotifierMixin {
 
   @override
   set state(String? value) {
+    if (!ref.mounted) return;
     super.state = value;
+    if (!ref.mounted) return;
     globalState.appState = globalState.appState.copyWith(
       localIp: state,
     );

@@ -216,8 +216,14 @@ class GlobalState {
     required Widget child,
     bool dismissible = true,
   }) async {
+    final context = navigatorKey.currentContext ?? navigatorKey.currentState?.context;
+    if (context == null || !context.mounted) {
+      commonPrint.log('showCommonDialog skipped: navigator context is not ready');
+      return null;
+    }
+
     return await showModal<T>(
-      context: navigatorKey.currentState!.context,
+      context: context,
       configuration: FadeScaleTransitionConfiguration(
         barrierColor: Colors.black38,
         barrierDismissible: dismissible,

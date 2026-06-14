@@ -12,12 +12,19 @@ final _logger = FileLogger('api_service.dart');
 /// 客服系统API服务类
 class CustomerSupportApiService {
   final String baseUrl;
+  final bool isEnabled;
   final http.Client _httpClient;
 
   CustomerSupportApiService({
     required this.baseUrl,
     http.Client? httpClient,
-  }) : _httpClient = httpClient ?? _createHttpClient();
+  }) : isEnabled = true,
+       _httpClient = httpClient ?? _createHttpClient();
+
+  CustomerSupportApiService.disabled()
+      : baseUrl = '',
+        isEnabled = false,
+        _httpClient = _createHttpClient();
 
   /// 创建一个禁用自动重定向的HTTP客户端
   static http.Client _createHttpClient() {
@@ -49,6 +56,10 @@ class CustomerSupportApiService {
   Future<ChatMessage?> sendMessage(
     String content,
   ) async {
+    if (!isEnabled) {
+      _logger.warning('在线客服 API 未配置，跳过发送消息');
+      return null;
+    }
     try {
       // 获取token
       final token = await CustomerSupportServiceConfig.getUserToken();
@@ -60,7 +71,7 @@ class CustomerSupportApiService {
       final url = '$baseUrl/messages/';
       final requestBody = {'content': content};
 
-      _logger.debug('OnlineSupportApiService', '发送消息请求详情: URL: $url, Headers: {Content-Type: application/json, Authorization: $token}, Body: ${jsonEncode(requestBody)}');
+      _logger.debug('OnlineSupportApiService', '发送消息请求详情: URL: $url, Headers: {Content-Type: application/json, Authorization: [REDACTED]}, Body: ${jsonEncode(requestBody)}');
 
       final response = await _httpClient.post(
         Uri.parse(url),
@@ -92,6 +103,10 @@ class CustomerSupportApiService {
     int limit = 20,
     int offset = 0,
   }) async {
+    if (!isEnabled) {
+      _logger.warning('在线客服 API 未配置，返回空消息列表');
+      return MessageListResponse(items: const [], total: 0);
+    }
     try {
       // 获取token
       final token = await CustomerSupportServiceConfig.getUserToken();
@@ -101,7 +116,7 @@ class CustomerSupportApiService {
 
       final url = '$baseUrl/messages/?limit=$limit&offset=$offset';
       
-      _logger.debug('获取消息历史请求详情: URL: $url, Token: $token, Headers: {Authorization: $token, Content-Type: application/json}', null);
+      _logger.debug('获取消息历史请求详情: URL: $url, Headers: {Authorization: [REDACTED], Content-Type: application/json}', null);
 
       final headers = {
         'Authorization': token,
@@ -147,6 +162,9 @@ class CustomerSupportApiService {
 
   /// 获取未读消息数量
   Future<int> getUnreadCount() async {
+    if (!isEnabled) {
+      return 0;
+    }
     try {
       // 获取token
       final token = await CustomerSupportServiceConfig.getUserToken();
@@ -157,7 +175,7 @@ class CustomerSupportApiService {
 
       final url = '$baseUrl/messages/unread';
       
-      _logger.debug('获取未读消息数请求详情: URL: $url, Headers: {Authorization: $token}', null);
+      _logger.debug('获取未读消息数请求详情: URL: $url, Headers: {Authorization: [REDACTED]}', null);
 
       final headers = {
         'Authorization': token,
@@ -184,6 +202,10 @@ class CustomerSupportApiService {
 
   /// 标记消息为已读
   Future<void> markMessagesAsRead(List<String> messageIds) async {
+    if (!isEnabled) {
+      _logger.warning('在线客服 API 未配置，跳过标记已读');
+      return;
+    }
     try {
       // 获取token
       final token = await CustomerSupportServiceConfig.getUserToken();
@@ -197,7 +219,7 @@ class CustomerSupportApiService {
         'message_ids': messageIds,
       };
       
-      _logger.debug('OnlineSupportApiService', '标记消息已读请求详情: URL: $url, Headers: {Content-Type: application/json, Authorization: $token}, Body: ${jsonEncode(requestBody)}');
+      _logger.debug('OnlineSupportApiService', '标记消息已读请求详情: URL: $url, Headers: {Content-Type: application/json, Authorization: [REDACTED]}, Body: ${jsonEncode(requestBody)}');
 
       final response = await _httpClient.post(
         Uri.parse(url),
@@ -274,6 +296,10 @@ class CustomerSupportApiService {
     String content = '',
     required List<int> attachmentIds,
   }) async {
+    if (!isEnabled) {
+      _logger.warning('在线客服 API 未配置，跳过发送附件消息');
+      return null;
+    }
     try {
       // 获取token
       final token = await CustomerSupportServiceConfig.getUserToken();
@@ -288,7 +314,7 @@ class CustomerSupportApiService {
         'attachment_ids': attachmentIds,
       };
 
-      _logger.debug('OnlineSupportApiService', '发送带附件消息请求详情: URL: $url, Headers: {Content-Type: application/json, Authorization: $token}, Body: ${jsonEncode(requestBody)}');
+      _logger.debug('OnlineSupportApiService', '发送带附件消息请求详情: URL: $url, Headers: {Content-Type: application/json, Authorization: [REDACTED]}, Body: ${jsonEncode(requestBody)}');
 
       final response = await _httpClient.post(
         Uri.parse(url),
