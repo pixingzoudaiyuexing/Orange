@@ -11,6 +11,7 @@ import 'package:fl_clash/xboard/wyx_v2board/wyx_v2board.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_backend.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_ui_controller.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_ui_helpers.dart';
+import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_ui_state.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 
 class NodeSelectorBar extends ConsumerStatefulWidget {
@@ -47,6 +48,13 @@ class _NodeSelectorBarState extends ConsumerState<NodeSelectorBar> {
     final mode = ref.watch(
       patchClashConfigProvider.select((state) => state.mode),
     );
+    final isWyx = ref
+        .watch(isWyxV2BoardBackendProvider)
+        .maybeWhen(data: (value) => value, orElse: () => false);
+    final wyxState = ref.watch(wyxV2BoardUiControllerProvider);
+    if (isWyx && (groups.isEmpty || wyxState.nodes.isNotEmpty)) {
+      return _buildWyxNodeFallback(context, wyxState);
+    }
     ref.listen(runTimeProvider, (previous, next) {
       final wasConnected = previous != null;
       final isConnected = next != null;
@@ -64,12 +72,6 @@ class _NodeSelectorBarState extends ConsumerState<NodeSelectorBar> {
       }
     });
     if (groups.isEmpty) {
-      final isWyx = ref
-          .watch(isWyxV2BoardBackendProvider)
-          .maybeWhen(data: (value) => value, orElse: () => false);
-      if (isWyx) {
-        return _buildWyxNodeFallback(context);
-      }
       return _buildEmptyState(context);
     }
     Group? currentGroup;
@@ -333,8 +335,10 @@ class _NodeSelectorBarState extends ConsumerState<NodeSelectorBar> {
     );
   }
 
-  Widget _buildWyxNodeFallback(BuildContext context) {
-    final wyxState = ref.watch(wyxV2BoardUiControllerProvider);
+  Widget _buildWyxNodeFallback(
+    BuildContext context,
+    WyxV2BoardUiDataState wyxState,
+  ) {
     if (!wyxState.isLoading && !wyxState.nodesLoaded) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -342,7 +346,7 @@ class _NodeSelectorBarState extends ConsumerState<NodeSelectorBar> {
       });
     }
 
-    if (wyxState.isLoading) {
+    if (wyxState.isLoading && wyxState.nodes.isEmpty) {
       return _buildWyxInfoCard(
         context,
         icon: Icons.sync,

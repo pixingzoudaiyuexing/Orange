@@ -60,6 +60,12 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
 
   @override
   Widget build(BuildContext context) {
+    final apiService = ref.watch(apiServiceProvider);
+    final wsService = ref.watch(wsServiceProvider);
+    if (!apiService.isEnabled || !wsService.isEnabled) {
+      return _buildDisabledPage(context);
+    }
+
     final chatState = ref.watch(chatProvider);
     final chatNotifier = ref.watch(chatProvider.notifier);
 
@@ -129,7 +135,6 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
       );
     }
 
-
     // 标记消息为已读
     void markMessagesAsRead() {
       final unreadMessageIds = chatState.messages
@@ -171,36 +176,37 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
 
     // 页面构建
     // 根据操作系统平台判断设备类型
-    final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
-    
+    final isDesktop =
+        Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+
     final scaffold = Scaffold(
-      appBar: isDesktop 
-        ? null  // 桌面端不显示 AppBar，由 Shell 提供导航
-        : AppBar(
-            title: Column(
-              children: [
-                Text(appLocalizations.onlineSupportTitle),
-                // 连接状态显示在标题下方
-                Text(
-                  getConnectionStatusText(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: getConnectionStatusColor(),
+      appBar: isDesktop
+          ? null // 桌面端不显示 AppBar，由 Shell 提供导航
+          : AppBar(
+              title: Column(
+                children: [
+                  Text(appLocalizations.onlineSupportTitle),
+                  // 连接状态显示在标题下方
+                  Text(
+                    getConnectionStatusText(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: getConnectionStatusColor(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+              centerTitle: true,
+              // actions: [
+              //   // 添加清除历史按钮
+              //   IconButton(
+              //     icon: const Icon(Icons.delete_outline),
+              //     tooltip: '清除历史记录',
+              //     onPressed: showClearHistoryDialog,
+              //   ),
+              //   const SizedBox(width: 8),
+              // ],
             ),
-            centerTitle: true,
-        // actions: [
-        //   // 添加清除历史按钮
-        //   IconButton(
-        //     icon: const Icon(Icons.delete_outline),
-        //     tooltip: '清除历史记录',
-        //     onPressed: showClearHistoryDialog,
-        //   ),
-        //   const SizedBox(width: 8),
-        // ],
-      ),
       body: Column(
         children: [
           // 消息列表
@@ -208,55 +214,51 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
             child: chatState.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : chatState.messages.isEmpty
-                    ? Center(child: Text(appLocalizations.onlineSupportNoMessages))
-                    : CustomScrollView(
-                        controller: scrollController,
-                        // 反转滚动视图，使最新消息在底部
-                        reverse: true,
-                        slivers: [
-                          SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                // 获取消息
-                                final message = chatState.messages[index];
+                ? Center(child: Text(appLocalizations.onlineSupportNoMessages))
+                : CustomScrollView(
+                    controller: scrollController,
+                    // 反转滚动视图，使最新消息在底部
+                    reverse: true,
+                    slivers: [
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          // 获取消息
+                          final message = chatState.messages[index];
 
-                                // 标记客服消息为已读
-                                if (message.senderType == SenderType.agent &&
-                                    !message.read) {
-                                  // 使用Future.microtask避免在构建过程中修改状态
-                                  Future.microtask(() => markMessagesAsRead());
-                                }
+                          // 标记客服消息为已读
+                          if (message.senderType == SenderType.agent &&
+                              !message.read) {
+                            // 使用Future.microtask避免在构建过程中修改状态
+                            Future.microtask(() => markMessagesAsRead());
+                          }
 
-                                // 返回消息组件
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 4,
-                                    horizontal: 8,
-                                  ),
-                                  child: ChatMessageWidget(
-                                    message: message.content,
-                                    isFromUser:
-                                        message.senderType == SenderType.user,
-                                    timestamp: message.createdAt,
-                                    attachments: message.attachments,
-                                  ),
-                                );
-                              },
-                              childCount: chatState.messages.length,
+                          // 返回消息组件
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 4,
+                              horizontal: 8,
+                            ),
+                            child: ChatMessageWidget(
+                              message: message.content,
+                              isFromUser: message.senderType == SenderType.user,
+                              timestamp: message.createdAt,
+                              attachments: message.attachments,
+                            ),
+                          );
+                        }, childCount: chatState.messages.length),
+                      ),
+                      // 加载更多指示器
+                      if (chatState.isLoadingMore)
+                        const SliverToBoxAdapter(
+                          child: Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(),
                             ),
                           ),
-                          // 加载更多指示器
-                          if (chatState.isLoadingMore)
-                            const SliverToBoxAdapter(
-                              child: Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: CircularProgressIndicator(),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                        ),
+                    ],
+                  ),
           ),
 
           // 错误提示
@@ -267,9 +269,7 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
               width: double.infinity,
               child: Text(
                 chatState.errorMessage,
-                style: const TextStyle(
-                  color: Colors.red,
-                ),
+                style: const TextStyle(color: Colors.red),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -311,7 +311,9 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
-                      fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      fillColor: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 8,
@@ -333,7 +335,9 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : IconButton(
@@ -347,7 +351,7 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
         ],
       ),
     );
-    
+
     // 移动端需要拦截返回按钮，桌面端直接返回 scaffold
     if (isDesktop) {
       return scaffold;
@@ -361,5 +365,58 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
         child: scaffold,
       );
     }
+  }
+
+  Widget _buildDisabledPage(BuildContext context) {
+    final isDesktop =
+        Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+    final body = Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.support_agent_outlined,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '在线客服暂未开放',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '请通过官网、Telegram 或工单联系客服',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+    final scaffold = Scaffold(
+      appBar: isDesktop
+          ? null
+          : AppBar(title: Text(appLocalizations.onlineSupportTitle)),
+      body: body,
+    );
+    if (isDesktop) {
+      return scaffold;
+    }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        context.go('/');
+      },
+      child: scaffold,
+    );
   }
 }

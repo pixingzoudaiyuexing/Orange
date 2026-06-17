@@ -168,7 +168,7 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
   }
 
   Future<List<WyxNodeInfo>> loadNodes() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(isLoading: state.nodes.isEmpty, errorMessage: null);
     try {
       final adapter = await _adapter();
       final nodes = await adapter.getNodeList();
@@ -183,6 +183,7 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       state = state.copyWith(
         isLoading: false,
         nodesLoaded: true,
+        nodes: state.nodes,
         errorMessage: WyxV2BoardUiErrorMapper.message(error),
       );
       rethrow;

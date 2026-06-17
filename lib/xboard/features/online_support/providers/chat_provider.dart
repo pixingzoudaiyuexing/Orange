@@ -87,6 +87,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _init();
   }
 
+  ChatNotifier.disabled()
+    : _apiService = CustomerSupportApiService.disabled(),
+      _wsService = CustomerSupportWebSocketService.disabled(),
+      super(
+        const ChatState(
+          isLoading: false,
+          hasMoreMessages: false,
+          isError: false,
+        ),
+      );
+
   /// 初始化
   Future<void> _init() async {
     // 初始状态设置为加载中
@@ -499,6 +510,9 @@ final wsConnectionStatusProvider = StreamProvider<WebSocketStatus>((
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   final apiService = ref.watch(apiServiceProvider);
   final wsService = ref.watch(wsServiceProvider);
+  if (!apiService.isEnabled || !wsService.isEnabled) {
+    return ChatNotifier.disabled();
+  }
 
   return ChatNotifier(apiService: apiService, wsService: wsService);
 });

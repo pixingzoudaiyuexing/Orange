@@ -2,7 +2,14 @@ import 'package:fl_clash/security/security.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/domain/domain.dart';
 import 'package:fl_clash/xboard/features/auth/auth.dart';
+import 'package:fl_clash/xboard/features/invite/providers/invite_provider.dart';
 import 'package:fl_clash/xboard/features/notice/providers/notice_provider.dart';
+import 'package:fl_clash/xboard/features/online_support/pages/online_support_page.dart';
+import 'package:fl_clash/xboard/features/online_support/providers/chat_provider.dart';
+import 'package:fl_clash/xboard/features/online_support/providers/websocket_auto_connector.dart';
+import 'package:fl_clash/xboard/features/online_support/services/api_service.dart';
+import 'package:fl_clash/xboard/features/online_support/services/websocket_service.dart';
+import 'package:fl_clash/xboard/features/payment/widgets/plan_description_widget.dart';
 import 'package:fl_clash/xboard/features/subscription/providers/xboard_subscription_provider.dart';
 import 'package:fl_clash/xboard/infrastructure/infrastructure.dart';
 import 'package:fl_clash/xboard/services/services.dart';
@@ -154,6 +161,58 @@ void main() {
     });
   });
 
+  group('PlanDescriptionWidget', () {
+    test('parses JSON feature strings and hides unsupported items', () {
+      const content =
+          '[{"feature":"每月 350GB 流量","support":true},'
+          '{"feature":"不支持项目","support":false},'
+          '{"feature":"高速节点 + 隧道节点","support":true}]';
+
+      final display = PlanDescriptionDisplayData.from(content: content);
+
+      expect(display.items, contains('每月 350GB 流量'));
+      expect(display.items, contains('高速节点 + 隧道节点'));
+      expect(display.items, isNot(contains('不支持项目')));
+      expect(display.text, isNull);
+      expect(display.items.join('\n'), isNot(contains('"feature"')));
+      expect(display.items.join('\n'), isNot(contains('[{')));
+    });
+
+    test('keeps plain text descriptions readable', () {
+      final display = PlanDescriptionDisplayData.from(
+        content: '适合日常使用，支持高速线路。',
+      );
+
+      expect(display.items, isEmpty);
+      expect(display.text, '适合日常使用，支持高速线路。');
+    });
+
+    test('empty description with no features is safe', () {
+      final display = PlanDescriptionDisplayData.from(content: '');
+
+      expect(display.isEmpty, true);
+      expect(display.items, isEmpty);
+      expect(display.text, '');
+    });
+
+    testWidgets('renders feature list without raw JSON text', (tester) async {
+      const content =
+          '[{"feature":"协议：Vless, AnyTLS","support":true},'
+          '{"feature":"带宽：无限制","support":true}]';
+
+      await tester.pumpWidget(
+        _localizedApp(
+          const Scaffold(body: PlanDescriptionWidget(content: content)),
+        ),
+      );
+
+      expect(find.text('协议：Vless, AnyTLS'), findsOneWidget);
+      expect(find.text('带宽：无限制'), findsOneWidget);
+      expect(find.textContaining('"feature"'), findsNothing);
+      expect(find.textContaining('[{'), findsNothing);
+    });
+  });
+
   group('SubscriptionUsageCard', () {
     testWidgets(
       'shows wyx package when profile subscription is not imported yet',
@@ -213,6 +272,51 @@ void main() {
         expect(find.textContaining('subscribe'), findsNothing);
       },
     );
+  });
+
+  group('Online support disabled state', () {
+    test('disabled services do not connect or enter loading state', () {
+      final container = ProviderContainer(
+        overrides: [
+          apiServiceProvider.overrideWithValue(
+            CustomerSupportApiService.disabled(),
+          ),
+          wsServiceProvider.overrideWithValue(
+            CustomerSupportWebSocketService.disabled(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(webSocketAutoConnectorProvider);
+
+      expect(container.read(wsServiceProvider).isEnabled, false);
+      expect(container.read(wsServiceProvider).isConnected, false);
+      expect(container.read(chatProvider).isLoading, false);
+      expect(container.read(chatProvider).isError, false);
+    });
+
+    testWidgets('disabled page shows friendly prompt', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            apiServiceProvider.overrideWithValue(
+              CustomerSupportApiService.disabled(),
+            ),
+            wsServiceProvider.overrideWithValue(
+              CustomerSupportWebSocketService.disabled(),
+            ),
+          ],
+          child: _localizedApp(const OnlineSupportPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('在线客服暂未开放'), findsOneWidget);
+      expect(find.text('请通过官网、Telegram 或工单联系客服'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('WyxV2Board UI providers', () {
@@ -301,6 +405,89 @@ void main() {
       },
     );
 
+    test(
+      'invite info uses wyx GET adapter and maps 405 to friendly text',
+      () async {
+        final adapter = _FakeWyxAdapter();
+        final container = _container(adapter: adapter);
+        addTearDown(container.dispose);
+
+        await container.read(inviteProvider.notifier).loadInviteData();
+
+        expect(adapter.inviteCalls, 1);
+        expect(
+          container.read(inviteProvider).inviteData?.codes.single.code,
+          'INVITE',
+        );
+        expect(container.read(inviteProvider).errorMessage, isNull);
+
+        adapter.inviteError = const WyxV2BoardException(
+          code: WyxV2BoardErrorCode.backendError,
+          statusCode: 405,
+          message:
+              'The POST method is not supported for this route. Supported methods: GET, HEAD.',
+        );
+
+        await container.read(inviteProvider.notifier).loadInviteData();
+
+        final error = container.read(inviteProvider).errorMessage;
+        expect(error, '邀请码加载失败，请稍后重试');
+        expect(error, isNot(contains('POST')));
+        expect(error, isNot(contains('method')));
+      },
+    );
+
+    test(
+      'keeps wyx node fallback after refresh failure and clears on logout',
+      () async {
+        final adapter = _FakeWyxAdapter(
+          nodes: List.generate(
+            27,
+            (index) => _wyxNode(
+              id: index + 1,
+              name: index == 0 ? '日本｜隧道C' : '节点 ${index + 1}',
+            ),
+          ),
+        );
+        final container = _container(adapter: adapter);
+        addTearDown(container.dispose);
+
+        await container
+            .read(xboardUserProvider.notifier)
+            .login('user@example.com', 'secret-password');
+        final loadedNodes = await container
+            .read(wyxV2BoardUiControllerProvider.notifier)
+            .loadNodes();
+
+        expect(loadedNodes, hasLength(27));
+        expect(loadedNodes.first.name, '日本｜隧道C');
+
+        adapter.nodeError = const WyxV2BoardException(
+          code: WyxV2BoardErrorCode.backendError,
+          message: 'temporary failure',
+        );
+
+        await expectLater(
+          container.read(wyxV2BoardUiControllerProvider.notifier).loadNodes(),
+          throwsA(isA<WyxV2BoardException>()),
+        );
+
+        final stateAfterFailure = container.read(
+          wyxV2BoardUiControllerProvider,
+        );
+        expect(stateAfterFailure.nodes, hasLength(27));
+        expect(stateAfterFailure.nodes.first.name, '日本｜隧道C');
+        expect(
+          stateAfterFailure.nodes.first.toString(),
+          isNot(contains('hidden-node.example.com')),
+        );
+
+        await container.read(xboardUserProvider.notifier).logout();
+
+        expect(container.read(wyxV2BoardUiControllerProvider).nodes, isEmpty);
+      },
+    );
+
     test('logout clears auth session and published home state', () async {
       final adapter = _FakeWyxAdapter();
       final storage = _MemoryStorage();
@@ -356,9 +543,13 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
   WyxAuthSession? _session;
   Object? loginError;
   Object? noticeError;
+  Object? inviteError;
+  Object? nodeError;
+  List<WyxNodeInfo>? nodes;
+  int inviteCalls = 0;
   String? lastPassword;
 
-  _FakeWyxAdapter({this.loginError});
+  _FakeWyxAdapter({this.loginError, this.nodes});
 
   @override
   WyxAuthSession? get currentSession => _session;
@@ -436,17 +627,11 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
 
   @override
   Future<List<WyxNodeInfo>> getNodeList() async {
-    return const [
-      WyxNodeInfo(
-        id: 1,
-        name: 'Hong Kong 01',
-        type: 'vless',
-        rate: 1.5,
-        country: 'HK',
-        tags: ['premium'],
-        raw: {'server': 'hidden-node.example.com'},
-      ),
-    ];
+    final error = nodeError;
+    if (error != null) {
+      throw error;
+    }
+    return nodes ?? [_wyxNode(id: 1, name: 'Hong Kong 01')];
   }
 
   @override
@@ -489,7 +674,17 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
 
   @override
   Future<WyxInviteInfo> getInviteInfo() async {
-    return const WyxInviteInfo(safeData: {});
+    inviteCalls += 1;
+    final error = inviteError;
+    if (error != null) {
+      throw error;
+    }
+    return const WyxInviteInfo(
+      code: 'INVITE',
+      invitedCount: 0,
+      commissionBalance: 0,
+      safeData: {'source': 'test'},
+    );
   }
 
   @override
@@ -516,6 +711,32 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
   Future<Object?> getClientAppVersion() async {
     return null;
   }
+}
+
+Widget _localizedApp(Widget child) {
+  return MaterialApp(
+    locale: const Locale('zh', 'CN'),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: AppLocalizations.delegate.supportedLocales,
+    home: child,
+  );
+}
+
+WyxNodeInfo _wyxNode({required int id, required String name}) {
+  return WyxNodeInfo(
+    id: id,
+    name: name,
+    type: 'vless',
+    rate: 1.5,
+    country: 'JP',
+    tags: const ['premium'],
+    raw: {'server': 'hidden-node.example.com'},
+  );
 }
 
 class _MemoryStorage implements StorageInterface {

@@ -28,74 +28,80 @@ void main() {
       });
     });
 
-    test('user-info uses raw auth_data as Authorization without Bearer',
-        () async {
-      final client = _FakeWyxSecureClient({
-        _key('POST', WyxV2BoardApi.login): _loginOk(),
-        _key('GET', WyxV2BoardApi.userInfo): _ok({
-          'data': {
-            'email': 'user@example.com',
-            'transfer_enable': 1024,
-            'banned': 0,
-            'balance': 0,
-            'commission_balance': 0,
-            'uuid': 'uuid-1',
-          },
-        }),
-      });
-      final adapter = WyxV2BoardAdapter(client: client);
-
-      await adapter.login('user@example.com', 'secret');
-      final user = await adapter.getUserInfo();
-
-      final userInfoCall = client.calls.last;
-      expect(userInfoCall.path, WyxV2BoardApi.userInfo);
-      expect(userInfoCall.headers['authorization'], 'jwt-auth-data');
-      expect(
-          userInfoCall.headers['authorization'], isNot(startsWith('Bearer ')));
-      expect(user.email, 'user@example.com');
-      expect(user.transferEnable, 1024);
-    });
-
-    test('getSubscribeInfo parses subscribe_url and plan JSON content',
-        () async {
-      final client = _FakeWyxSecureClient({
-        _key('POST', WyxV2BoardApi.login): _loginOk(),
-        _key('GET', WyxV2BoardApi.subscribeInfo): _ok({
-          'data': {
-            'plan_id': 3,
-            'token': 'subscribe-token',
-            'expired_at': 1782888435,
-            'u': 100,
-            'd': 200,
-            'transfer_enable': 1000,
-            'email': 'user@example.com',
-            'subscribe_url':
-                'https://example.com/api/v1/client/subscribe?token=abc',
-            'plan': {
-              'id': 3,
-              'name': 'Plus',
-              'transfer_enable': 350,
-              'show': 1,
-              'renew': 1,
-              'content': '[{"feature":"350GB traffic","support":true}]',
+    test(
+      'user-info uses raw auth_data as Authorization without Bearer',
+      () async {
+        final client = _FakeWyxSecureClient({
+          _key('POST', WyxV2BoardApi.login): _loginOk(),
+          _key('GET', WyxV2BoardApi.userInfo): _ok({
+            'data': {
+              'email': 'user@example.com',
+              'transfer_enable': 1024,
+              'banned': 0,
+              'balance': 0,
+              'commission_balance': 0,
+              'uuid': 'uuid-1',
             },
-          },
-        }),
-      });
-      final adapter = WyxV2BoardAdapter(client: client);
+          }),
+        });
+        final adapter = WyxV2BoardAdapter(client: client);
 
-      await adapter.login('user@example.com', 'secret');
-      final subscribe = await adapter.getSubscribeInfo();
+        await adapter.login('user@example.com', 'secret');
+        final user = await adapter.getUserInfo();
 
-      expect(subscribe.subscribeUrl, contains('/api/v1/client/subscribe'));
-      expect(subscribe.token, 'subscribe-token');
-      expect(subscribe.usedTraffic, 300);
-      expect(subscribe.plan?.name, 'Plus');
-      expect(subscribe.plan?.features.single.feature, '350GB traffic');
-      expect(subscribe.toString(), isNot(contains('subscribe-token')));
-      expect(subscribe.toString(), isNot(contains('token=abc')));
-    });
+        final userInfoCall = client.calls.last;
+        expect(userInfoCall.path, WyxV2BoardApi.userInfo);
+        expect(userInfoCall.headers['authorization'], 'jwt-auth-data');
+        expect(
+          userInfoCall.headers['authorization'],
+          isNot(startsWith('Bearer ')),
+        );
+        expect(user.email, 'user@example.com');
+        expect(user.transferEnable, 1024);
+      },
+    );
+
+    test(
+      'getSubscribeInfo parses subscribe_url and plan JSON content',
+      () async {
+        final client = _FakeWyxSecureClient({
+          _key('POST', WyxV2BoardApi.login): _loginOk(),
+          _key('GET', WyxV2BoardApi.subscribeInfo): _ok({
+            'data': {
+              'plan_id': 3,
+              'token': 'subscribe-token',
+              'expired_at': 1782888435,
+              'u': 100,
+              'd': 200,
+              'transfer_enable': 1000,
+              'email': 'user@example.com',
+              'subscribe_url':
+                  'https://example.com/api/v1/client/subscribe?token=abc',
+              'plan': {
+                'id': 3,
+                'name': 'Plus',
+                'transfer_enable': 350,
+                'show': 1,
+                'renew': 1,
+                'content': '[{"feature":"350GB traffic","support":true}]',
+              },
+            },
+          }),
+        });
+        final adapter = WyxV2BoardAdapter(client: client);
+
+        await adapter.login('user@example.com', 'secret');
+        final subscribe = await adapter.getSubscribeInfo();
+
+        expect(subscribe.subscribeUrl, contains('/api/v1/client/subscribe'));
+        expect(subscribe.token, 'subscribe-token');
+        expect(subscribe.usedTraffic, 300);
+        expect(subscribe.plan?.name, 'Plus');
+        expect(subscribe.plan?.features.single.feature, '350GB traffic');
+        expect(subscribe.toString(), isNot(contains('subscribe-token')));
+        expect(subscribe.toString(), isNot(contains('token=abc')));
+      },
+    );
 
     test('plan.content parse failures do not crash', () async {
       final client = _FakeWyxSecureClient({
@@ -123,33 +129,35 @@ void main() {
       expect(plans.single.features, isEmpty);
     });
 
-    test('getNodeList parses node arrays without logging raw server details',
-        () async {
-      final client = _FakeWyxSecureClient({
-        _key('POST', WyxV2BoardApi.login): _loginOk(),
-        _key('GET', WyxV2BoardApi.nodeList): _ok({
-          'data': [
-            {
-              'id': 9,
-              'name': 'Hong Kong 01',
-              'type': 'vless',
-              'rate': 1.5,
-              'server': 'node.example.com',
-            },
-          ],
-        }),
-      });
-      final adapter = WyxV2BoardAdapter(client: client);
+    test(
+      'getNodeList parses node arrays without logging raw server details',
+      () async {
+        final client = _FakeWyxSecureClient({
+          _key('POST', WyxV2BoardApi.login): _loginOk(),
+          _key('GET', WyxV2BoardApi.nodeList): _ok({
+            'data': [
+              {
+                'id': 9,
+                'name': 'Hong Kong 01',
+                'type': 'vless',
+                'rate': 1.5,
+                'server': 'node.example.com',
+              },
+            ],
+          }),
+        });
+        final adapter = WyxV2BoardAdapter(client: client);
 
-      await adapter.login('user@example.com', 'secret');
-      final nodes = await adapter.getNodeList();
+        await adapter.login('user@example.com', 'secret');
+        final nodes = await adapter.getNodeList();
 
-      expect(nodes.single.id, 9);
-      expect(nodes.single.type, 'vless');
-      expect(nodes.single.rate, 1.5);
-      expect(nodes.single.raw['server'], 'node.example.com');
-      expect(nodes.single.toString(), isNot(contains('node.example.com')));
-    });
+        expect(nodes.single.id, 9);
+        expect(nodes.single.type, 'vless');
+        expect(nodes.single.rate, 1.5);
+        expect(nodes.single.raw['server'], 'node.example.com');
+        expect(nodes.single.toString(), isNot(contains('node.example.com')));
+      },
+    );
 
     test('getNoticeList parses notices', () async {
       final client = _FakeWyxSecureClient({
@@ -174,6 +182,28 @@ void main() {
       expect(notices.single.title, 'Maintenance');
       expect(notices.single.show, true);
       expect(notices.single.tags, ['ops']);
+    });
+
+    test('getInviteInfo uses GET for wyx invite route', () async {
+      final client = _FakeWyxSecureClient({
+        _key('POST', WyxV2BoardApi.login): _loginOk(),
+        _key('GET', WyxV2BoardApi.inviteInfo): _ok({
+          'data': {
+            'code': 'INVITE',
+            'invited_count': 0,
+            'commission_balance': 0,
+          },
+        }),
+      });
+      final adapter = WyxV2BoardAdapter(client: client);
+
+      await adapter.login('user@example.com', 'secret');
+      final invite = await adapter.getInviteInfo();
+
+      final inviteCall = client.calls.last;
+      expect(inviteCall.method, 'GET');
+      expect(inviteCall.path, WyxV2BoardApi.inviteInfo);
+      expect(invite.code, 'INVITE');
     });
 
     test('getOrderList parses orders from paginated data', () async {
@@ -227,25 +257,23 @@ void main() {
                 'code',
                 WyxV2BoardErrorCode.unauthenticated,
               )
-              .having(
-                (error) => error.requestId,
-                'requestId',
-                'request-403',
-              ),
+              .having((error) => error.requestId, 'requestId', 'request-403'),
         ),
       );
     });
 
     test('SensitiveLogMasker masks adapter sensitive fields', () {
       const masker = SensitiveLogMasker();
-      final masked = masker.mask({
-        'token': 'subscribe-token',
-        'auth_data': 'jwt-auth-data',
-        'authorization': 'jwt-auth-data',
-        'subscribe_url': 'https://example.com/sub?token=abc',
-        'password': 'secret',
-        'email': 'user@example.com',
-      }) as Map;
+      final masked =
+          masker.mask({
+                'token': 'subscribe-token',
+                'auth_data': 'jwt-auth-data',
+                'authorization': 'jwt-auth-data',
+                'subscribe_url': 'https://example.com/sub?token=abc',
+                'password': 'secret',
+                'email': 'user@example.com',
+              })
+              as Map;
 
       expect(masked['token'], isNot('subscribe-token'));
       expect(masked['auth_data'], isNot('jwt-auth-data'));
