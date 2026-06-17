@@ -72,5 +72,8 @@ assets/config/xboard.config.yaml
 secure-v2-public.pem
 *.pem
 
+# Local RemoteConfig test output.
+/local_config/
+
 # 忽略证书文件
 assets/cer/

@@ -58,11 +58,15 @@ class SensitiveLogMasker {
         r'["\s:=]+([^\s",}]+)',
         caseSensitive: false,
       ),
+      RegExp(r'([?&]token=)([^&\s",}]+)', caseSensitive: false),
     ];
     for (final pattern in patterns) {
       masked = masked.replaceAllMapped(pattern, (match) {
-        final prefix = match.group(0)!.contains('Bearer')
+        final raw = match.group(0)!;
+        final prefix = raw.contains('Bearer')
             ? 'Bearer '
+            : raw.startsWith(RegExp(r'[?&]token=', caseSensitive: false))
+            ? match.group(1)!
             : '${match.group(1)}=';
         final secret = match.group(match.groupCount) ?? '';
         return '$prefix${_maskString(secret)}';
