@@ -1,11 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:fl_clash/security/security.dart';
 import 'package:fl_clash/xboard/features/profile/profile.dart';
-import 'package:fl_clash/xboard/features/profile/services/profile_import_service.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 
 // 初始化文件级日志器
 final _logger = FileLogger('profile_import_provider.dart');
+const _masker = SensitiveLogMasker();
 
 class ProfileImportNotifier extends StateNotifier<ImportState> {
   final Ref _ref;
@@ -15,15 +16,22 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
   Future<bool> importSubscription(
     String url, {
     bool forceRefresh = false,
+    bool persistUrl = true,
+    String? source,
+    bool allowEncryptedService = true,
   }) async {
-    _logger.info('开始导入订阅: $url, forceRefresh: $forceRefresh');
+    _logger.info(
+      '开始导入订阅: ${_maskSensitiveText(url)}, '
+      'forceRefresh: $forceRefresh, persistUrl: $persistUrl, '
+      'source: ${source ?? "default"}',
+    );
 
     state = state.copyWith(
       status: ImportStatus.downloading,
       isImporting: true,
       progress: 0.0,
       message: '开始导入订阅',
-      currentUrl: url,
+      currentUrl: persistUrl ? url : '',
     );
 
     try {
@@ -32,6 +40,9 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
 
       final result = await importService.importSubscription(
         url,
+        persistUrl: persistUrl,
+        source: source,
+        allowEncryptedService: allowEncryptedService,
         onProgress: (status, progress, message) {
           state = state.copyWith(
             status: status,
@@ -52,11 +63,12 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
 
       return result.isSuccess;
     } catch (e) {
+      _logger.error('订阅导入失败', _maskSensitiveText(e));
       state = state.copyWith(
         status: ImportStatus.failed,
         isImporting: false,
         progress: 0.0,
-        message: '导入失败: $e',
+        message: '导入失败，请稍后重试',
       );
       return false;
     }
@@ -68,7 +80,7 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
       _logger.info('没有可重试的导入URL');
       return false;
     }
-    _logger.info('重试导入: $url');
+    _logger.info('重试导入: ${_maskSensitiveText(url)}');
     return await importSubscription(url);
   }
 
@@ -102,6 +114,17 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
   String? get errorMessage => state.lastResult?.errorMessage;
   ImportErrorType? get errorType => state.lastResult?.errorType;
   bool get canRetry => hasError && state.currentUrl?.isNotEmpty == true;
+}
+
+String _maskSensitiveText(Object? value) {
+  final masked = _masker.maskText('$value');
+  return masked.replaceAllMapped(
+    RegExp(r'https?:\/\/[^\s",)]+', caseSensitive: false),
+    (match) {
+      final text = match.group(0)!;
+      return text.startsWith('https://') ? 'https********' : 'http********';
+    },
+  );
 }
 
 final profileImportProvider =

@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/security/security.dart';
 import 'package:fl_clash/state.dart';
+
+const _masker = SensitiveLogMasker();
 
 class FlClashHttpOverrides extends HttpOverrides {
   static String handleFindProxy(Uri url) {
@@ -10,7 +13,7 @@ class FlClashHttpOverrides extends HttpOverrides {
     }
     final port = globalState.config.patchClashConfig.mixedPort;
     final isStart = globalState.appState.runTime != null;
-    commonPrint.log("find $url proxy:$isStart");
+    commonPrint.log("find ${_maskUrl(url)} proxy:$isStart");
     if (!isStart) return "DIRECT";
     return "PROXY localhost:$port";
   }
@@ -22,4 +25,15 @@ class FlClashHttpOverrides extends HttpOverrides {
     client.findProxy = handleFindProxy;
     return client;
   }
+}
+
+String _maskUrl(Uri url) {
+  final text = _masker.maskText(url.toString());
+  return text.replaceAllMapped(
+    RegExp(r'https?:\/\/[^\s",)]+', caseSensitive: false),
+    (match) {
+      final value = match.group(0)!;
+      return value.startsWith('https://') ? 'https********' : 'http********';
+    },
+  );
 }

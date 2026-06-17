@@ -47,6 +47,7 @@ class GlobalState {
   AppController? _appController;
   GlobalKey<CommonScaffoldState> homeScaffoldKey = GlobalKey();
   bool isInit = false;
+  bool _isUpdateTaskRunning = false;
 
   bool get isStart => startTime != null && startTime!.isBeforeNow;
 
@@ -103,21 +104,32 @@ class GlobalState {
   String get ua => config.patchClashConfig.globalUa ?? packageInfo.ua;
 
   startUpdateTasks([UpdateTasks? tasks]) async {
+    if (startTime == null) return;
     if (timer != null && timer!.isActive == true) return;
     if (tasks != null) {
       this.tasks = tasks;
     }
     await executorUpdateTask();
+    if (startTime == null) return;
     timer = Timer(const Duration(seconds: 1), () async {
       startUpdateTasks();
     });
   }
 
   executorUpdateTask() async {
-    for (final task in tasks) {
-      await task();
+    if (_isUpdateTaskRunning || startTime == null) return;
+    _isUpdateTaskRunning = true;
+    try {
+      for (final task in tasks) {
+        if (startTime == null) return;
+        await task();
+      }
+    } catch (e) {
+      commonPrint.log('后台状态更新任务失败，跳过本次更新');
+    } finally {
+      _isUpdateTaskRunning = false;
+      timer = null;
     }
-    timer = null;
   }
 
   stopUpdateTasks() {

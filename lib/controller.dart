@@ -21,13 +21,26 @@ import 'common/common.dart';
 import 'models/models.dart';
 import 'views/profiles/override_profile.dart';
 
+typedef TrafficFetcher = Future<Traffic> Function();
+
 class AppController {
   int? lastProfileModified;
 
   final BuildContext context;
   final WidgetRef _ref;
+  final TrafficFetcher? _trafficFetcher;
+  final TrafficFetcher? _totalTrafficFetcher;
+  bool _trafficProviderDisposedLogged = false;
+  bool _trafficStatsErrorLogged = false;
 
-  AppController(this.context, WidgetRef ref) : _ref = ref;
+  AppController(
+    this.context,
+    WidgetRef ref, {
+    TrafficFetcher? trafficFetcher,
+    TrafficFetcher? totalTrafficFetcher,
+  })  : _ref = ref,
+        _trafficFetcher = trafficFetcher,
+        _totalTrafficFetcher = totalTrafficFetcher;
 
   setupClashConfigDebounce() {
     debouncer.call(FunctionTag.setupClashConfig, () async {
@@ -112,20 +125,73 @@ class AppController {
 
   updateRunTime() {
     final startTime = globalState.startTime;
-    if (startTime != null) {
-      final startTimeStamp = startTime.millisecondsSinceEpoch;
-      final nowTimeStamp = DateTime.now().millisecondsSinceEpoch;
-      _ref.read(runTimeProvider.notifier).value = nowTimeStamp - startTimeStamp;
-    } else {
-      _ref.read(runTimeProvider.notifier).value = null;
-    }
+    _tryWriteTrafficProviderState(() {
+      if (startTime != null) {
+        final startTimeStamp = startTime.millisecondsSinceEpoch;
+        final nowTimeStamp = DateTime.now().millisecondsSinceEpoch;
+        _ref.read(runTimeProvider.notifier).value =
+            nowTimeStamp - startTimeStamp;
+      } else {
+        _ref.read(runTimeProvider.notifier).value = null;
+      }
+    });
   }
 
   updateTraffic() async {
-    final traffic = await clashCore.getTraffic();
-    _ref.read(trafficsProvider.notifier).addTraffic(traffic);
-    _ref.read(totalTrafficProvider.notifier).value =
-        await clashCore.getTotalTraffic();
+    try {
+      final traffic = await (_trafficFetcher?.call() ?? clashCore.getTraffic());
+      final totalTraffic =
+          await (_totalTrafficFetcher?.call() ?? clashCore.getTotalTraffic());
+      final didWrite = _tryWriteTrafficProviderState(() {
+        _ref.read(trafficsProvider.notifier).addTraffic(traffic);
+        _ref.read(totalTrafficProvider.notifier).value = totalTraffic;
+      });
+      if (didWrite) {
+        _trafficStatsErrorLogged = false;
+      }
+    } catch (e) {
+      if (_isRefDisposedError(e)) {
+        _logTrafficProviderDisposedOnce();
+        return;
+      }
+      if (!_trafficStatsErrorLogged) {
+        commonPrint.log('流量统计更新失败，跳过本次更新');
+        _trafficStatsErrorLogged = true;
+      }
+    }
+  }
+
+  bool _tryWriteTrafficProviderState(void Function() write) {
+    try {
+      write();
+      _trafficProviderDisposedLogged = false;
+      return true;
+    } catch (e) {
+      if (_isRefDisposedError(e)) {
+        _logTrafficProviderDisposedOnce();
+        return false;
+      }
+      rethrow;
+    }
+  }
+
+  void _logTrafficProviderDisposedOnce() {
+    if (_trafficProviderDisposedLogged) {
+      return;
+    }
+    commonPrint.log('流量统计 provider 已释放，跳过本次更新');
+    _trafficProviderDisposedLogged = true;
+  }
+
+  bool _isRefDisposedError(Object error) {
+    final message = error.toString().toLowerCase();
+    if (!message.contains('disposed')) {
+      return false;
+    }
+    return message.contains('ref') ||
+        message.contains('provider') ||
+        message.contains('notifier') ||
+        message.contains('container');
   }
 
   addProfile(Profile profile) async {
@@ -151,8 +217,8 @@ class AppController {
   }
 
   updateProviders() async {
-    _ref.read(providersProvider.notifier).value =
-        await clashCore.getExternalProviders();
+    final providers = await clashCore.getExternalProviders();
+    _ref.read(providersProvider.notifier).value = providers;
   }
 
   updateLocalIp() async {
@@ -380,12 +446,13 @@ class AppController {
 
   Future<void> updateGroups() async {
     try {
-      _ref.read(groupsProvider.notifier).value = await retry(
+      final groups = await retry(
         task: () async {
           return await clashCore.getProxiesGroups();
         },
         retryIf: (res) => res.isEmpty,
       );
+      _ref.read(groupsProvider.notifier).value = groups;
     } catch (_) {
       _ref.read(groupsProvider.notifier).value = [];
     }

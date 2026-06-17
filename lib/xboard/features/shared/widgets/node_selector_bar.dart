@@ -52,7 +52,7 @@ class _NodeSelectorBarState extends ConsumerState<NodeSelectorBar> {
         .watch(isWyxV2BoardBackendProvider)
         .maybeWhen(data: (value) => value, orElse: () => false);
     final wyxState = ref.watch(wyxV2BoardUiControllerProvider);
-    if (isWyx && (groups.isEmpty || wyxState.nodes.isNotEmpty)) {
+    if (isWyx && groups.isEmpty) {
       return _buildWyxNodeFallback(context, wyxState);
     }
     ref.listen(runTimeProvider, (previous, next) {
