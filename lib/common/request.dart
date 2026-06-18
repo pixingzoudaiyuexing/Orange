@@ -68,6 +68,7 @@ class Request {
   }
 
   Future<Map<String, dynamic>?> checkForUpdate() async {
+    if (repository.isEmpty) return null;
     final response = await _dio.get(
       "https://api.github.com/repos/$repository/releases/latest",
       options: Options(

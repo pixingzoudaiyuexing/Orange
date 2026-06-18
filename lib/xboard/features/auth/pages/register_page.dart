@@ -6,7 +6,6 @@ import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_clash/xboard/features/shared/shared.dart';
 import 'package:fl_clash/xboard/services/services.dart';
-import 'package:flutter_xboard_sdk/flutter_xboard_sdk.dart' show ConfigModel;
 import 'package:go_router/go_router.dart';
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -192,26 +191,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildInviteCodeField(ConfigModel? config) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final configAsync = ref.watch(configProvider);
-    
-    // 处理异步加载状态
-    return configAsync.when(
-      loading: () => const SizedBox.shrink(), // Or a placeholder
-      error: (error, stack) => const SizedBox.shrink(), // Or an error message
-      data: (configData) => XBInputField(
-        controller: _inviteCodeController,
-        labelText: (configData?.isInviteForce ?? false)
-            ? '${appLocalizations.xboardInviteCode} *' 
-            : appLocalizations.inviteCodeOptional,
-        hintText: appLocalizations.pleaseEnterInviteCode,
-        prefixIcon: Icons.card_giftcard_outlined,
-        enabled: true,
-      ),
     );
   }
 
@@ -461,4 +440,4 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ),
     );
   }
-} 
+}

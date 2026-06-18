@@ -3,14 +3,101 @@ import 'package:flutter/material.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/xboard/features/online_support/models/message_model.dart';
 import 'package:fl_clash/xboard/features/online_support/providers/chat_provider.dart';
+import 'package:fl_clash/xboard/features/online_support/services/crisp_support_service.dart';
 import 'package:fl_clash/xboard/features/online_support/services/websocket_service.dart';
 import 'package:fl_clash/xboard/features/online_support/widgets/chat_message_widget.dart';
 import 'package:fl_clash/xboard/features/online_support/widgets/image_picker_widget.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+typedef CrispSupportEmbedBuilder = Widget Function(Uri uri);
+
+final crispSupportEmbedBuilderProvider = Provider<CrispSupportEmbedBuilder>((
+  ref,
+) {
+  return (uri) => CrispSupportEmbed(uri: uri);
+});
+
+class CrispSupportEmbed extends StatelessWidget {
+  final Uri uri;
+
+  const CrispSupportEmbed({super.key, required this.uri});
+
+  @override
+  Widget build(BuildContext context) {
+    return _CrispWebView(uri: uri);
+  }
+}
+
+class _CrispWebView extends StatefulWidget {
+  final Uri uri;
+
+  const _CrispWebView({required this.uri});
+
+  @override
+  State<_CrispWebView> createState() => _CrispWebViewState();
+}
+
+class _CrispWebViewState extends State<_CrispWebView> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = true;
+                _hasError = false;
+              });
+            }
+          },
+          onPageFinished: (_) {
+            if (mounted) {
+              setState(() => _isLoading = false);
+            }
+          },
+          onWebResourceError: (error) {
+            if (error.isForMainFrame == false) return;
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _hasError = true;
+              });
+            }
+          },
+        ),
+      )
+      ..loadRequest(widget.uri);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return const Center(child: Text('在线客服加载失败'));
+    }
+
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller),
+        if (_isLoading) const Center(child: CircularProgressIndicator()),
+      ],
+    );
+  }
+}
 
 class OnlineSupportPage extends ConsumerStatefulWidget {
-  const OnlineSupportPage({super.key});
+  final bool standalone;
+
+  const OnlineSupportPage({super.key, this.standalone = false});
 
   @override
   ConsumerState<OnlineSupportPage> createState() => _OnlineSupportPageState();
@@ -60,10 +147,15 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
 
   @override
   Widget build(BuildContext context) {
+    final crispConfig = ref.watch(crispSupportConfigProvider);
+    if (crispConfig.isAvailable) {
+      return _buildCrispPage(context, crispConfig);
+    }
+
     final apiService = ref.watch(apiServiceProvider);
     final wsService = ref.watch(wsServiceProvider);
     if (!apiService.isEnabled || !wsService.isEnabled) {
-      return _buildDisabledPage(context);
+      return _buildDisabledPage(context, crispConfig);
     }
 
     final chatState = ref.watch(chatProvider);
@@ -180,8 +272,8 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
         Platform.isLinux || Platform.isWindows || Platform.isMacOS;
 
     final scaffold = Scaffold(
-      appBar: isDesktop
-          ? null // 桌面端不显示 AppBar，由 Shell 提供导航
+      appBar: isDesktop && !widget.standalone
+          ? null // Shell 内桌面端由侧边栏提供导航；登录前独立页面保留返回栏。
           : AppBar(
               title: Column(
                 children: [
@@ -353,7 +445,7 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
     );
 
     // 移动端需要拦截返回按钮，桌面端直接返回 scaffold
-    if (isDesktop) {
+    if (isDesktop || widget.standalone) {
       return scaffold;
     } else {
       return PopScope(
@@ -367,56 +459,93 @@ class _OnlineSupportPageState extends ConsumerState<OnlineSupportPage> {
     }
   }
 
-  Widget _buildDisabledPage(BuildContext context) {
+  Widget _buildCrispPage(BuildContext context, CrispSupportConfig config) {
+    final uri = config.crispUri;
+    if (uri == null) {
+      return _buildDisabledPage(context, config);
+    }
+
     final isDesktop =
         Platform.isLinux || Platform.isWindows || Platform.isMacOS;
-    final body = Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.support_agent_outlined,
-              size: 56,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '在线客服暂未开放',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '请通过官网、Telegram 或工单联系客服',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+    final colorScheme = Theme.of(context).colorScheme;
+    final embedBuilder = ref.watch(crispSupportEmbedBuilderProvider);
+    final body = Container(
+      color: colorScheme.surface,
+      child: embedBuilder(uri),
     );
     final scaffold = Scaffold(
-      appBar: isDesktop
+      appBar: isDesktop && !widget.standalone
           ? null
           : AppBar(title: Text(appLocalizations.onlineSupportTitle)),
       body: body,
     );
-    if (isDesktop) {
+    if (isDesktop || widget.standalone) {
       return scaffold;
     }
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        context.go('/');
-      },
-      child: scaffold,
+    return PopScope(canPop: true, child: scaffold);
+  }
+
+  Widget _buildDisabledPage(
+    BuildContext context, [
+    CrispSupportConfig config = const CrispSupportConfig(enabled: false),
+  ]) {
+    final isDesktop =
+        Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+    final body = Center(child: _buildUnavailableContent(context, config));
+    final scaffold = Scaffold(
+      appBar: isDesktop && !widget.standalone
+          ? null
+          : AppBar(title: Text(appLocalizations.onlineSupportTitle)),
+      body: body,
+    );
+    if (isDesktop || widget.standalone) {
+      return scaffold;
+    }
+    return PopScope(canPop: true, child: scaffold);
+  }
+
+  Widget _buildUnavailableContent(
+    BuildContext context,
+    CrispSupportConfig config,
+  ) {
+    final fallbackUri = config.fallbackUri;
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.support_agent_outlined,
+            size: 56,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '在线客服暂未开放',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '请通过官网或工单联系客服',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (fallbackUri != null) ...[
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () =>
+                  launchUrl(fallbackUri, mode: LaunchMode.externalApplication),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('打开备用联系方式'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

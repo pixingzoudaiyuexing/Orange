@@ -573,6 +573,9 @@ class AppController {
       if (res != true) {
         return;
       }
+      if (repository.isEmpty) {
+        return;
+      }
       launchUrl(
         Uri.parse("https://github.com/$repository/releases/latest"),
       );

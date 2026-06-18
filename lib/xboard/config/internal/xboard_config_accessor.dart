@@ -277,6 +277,16 @@ class XBoardConfigAccessor {
     return _onlineSupportService?.getWebSocketBaseUrl();
   }
 
+  /// 获取 Crisp Website ID
+  String? getCrispWebsiteId() {
+    return _onlineSupportService?.getCrispWebsiteId();
+  }
+
+  /// 获取 Crisp fallback URL
+  String? getCrispFallbackUrl() {
+    return _onlineSupportService?.getCrispFallbackUrl();
+  }
+
   /// 获取第一个订阅URL
   String? getFirstSubscriptionUrl() {
     return _currentConfig?.firstSubscriptionUrl;

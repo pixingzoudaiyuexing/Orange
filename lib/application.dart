@@ -146,6 +146,7 @@ class ApplicationState extends ConsumerState<Application> {
           if (currentContext != null) {
             debugPrint('[Application] 发现新版本，显示更新弹窗');
             // 显示更新弹窗
+            if (!currentContext.mounted) return;
             showDialog(
               context: currentContext,
               barrierDismissible: !updateState.forceUpdate, // 强制更新时不能取消
@@ -306,6 +307,7 @@ class ApplicationState extends ConsumerState<Application> {
         final isAuthenticated = userState.isAuthenticated;
         final isInitialized = userState.isInitialized;
         final isLoginPage = state.uri.path == '/login';
+        final isSupportPage = state.uri.path == '/support';
 
         // 初始化中，显示加载页面
         if (!isInitialized) {
@@ -313,7 +315,7 @@ class ApplicationState extends ConsumerState<Application> {
         }
 
         // 未认证且不在登录页，跳转到登录页
-        if (!isAuthenticated && !isLoginPage) {
+        if (!isAuthenticated && !isLoginPage && !isSupportPage) {
           return '/login';
         }
 

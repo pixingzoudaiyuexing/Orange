@@ -8,12 +8,14 @@ import 'package:fl_clash/security/security.dart';
 import 'package:fl_clash/xboard/core/core.dart';
 import 'package:fl_clash/xboard/domain/domain.dart';
 import 'package:fl_clash/xboard/features/auth/auth.dart';
+import 'package:fl_clash/xboard/features/initialization/initialization.dart';
 import 'package:fl_clash/xboard/features/invite/providers/invite_provider.dart';
 import 'package:fl_clash/xboard/features/notice/providers/notice_provider.dart';
 import 'package:fl_clash/xboard/features/online_support/pages/online_support_page.dart';
 import 'package:fl_clash/xboard/features/online_support/providers/chat_provider.dart';
 import 'package:fl_clash/xboard/features/online_support/providers/websocket_auto_connector.dart';
 import 'package:fl_clash/xboard/features/online_support/services/api_service.dart';
+import 'package:fl_clash/xboard/features/online_support/services/crisp_support_service.dart';
 import 'package:fl_clash/xboard/features/online_support/services/websocket_service.dart';
 import 'package:fl_clash/xboard/features/payment/widgets/plan_description_widget.dart';
 import 'package:fl_clash/xboard/features/profile/profile.dart';
@@ -330,8 +332,196 @@ void main() {
       await tester.pump();
 
       expect(find.text('在线客服暂未开放'), findsOneWidget);
-      expect(find.text('请通过官网、Telegram 或工单联系客服'), findsOneWidget);
+      expect(find.text('请通过官网或工单联系客服'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('LoginPage branding', () {
+    testWidgets('shows CloudGap branding without XBoard default title', (
+      tester,
+    ) async {
+      final storage = _MemoryStorage();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            storageServiceProvider.overrideWithValue(
+              XBoardStorageService(storage),
+            ),
+            initializationProvider.overrideWith(
+              (ref) => _ReadyInitializationNotifier(ref),
+            ),
+            appSettingProvider.overrideWithValue(const AppSettingProps()),
+            xboardUserProvider.overrideWith(() {
+              return _StaticAuthNotifier(
+                const UserAuthState(isInitialized: true),
+              );
+            }),
+            crispSupportConfigProvider.overrideWithValue(
+              const CrispSupportConfig(enabled: false),
+            ),
+          ],
+          child: _localizedApp(const LoginPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('CloudGap'), findsOneWidget);
+      expect(find.text('XBoard'), findsNothing);
+      expect(find.text('example.com'), findsNothing);
+      expect(find.byIcon(Icons.vpn_key_outlined), findsNothing);
+      expect(find.bySemanticsLabel('CloudGap'), findsWidgets);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.text(appLocalizations.xboardLogin), findsOneWidget);
+      expect(find.text(appLocalizations.xboardForgotPassword), findsOneWidget);
+      expect(find.text(appLocalizations.xboardRegister), findsOneWidget);
+      expect(find.text(appLocalizations.onlineSupport), findsWidgets);
+    });
+
+    testWidgets(
+      'opens in-app support page when online support is unavailable',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              storageServiceProvider.overrideWithValue(
+                XBoardStorageService(_MemoryStorage()),
+              ),
+              initializationProvider.overrideWith(
+                (ref) => _ReadyInitializationNotifier(ref),
+              ),
+              appSettingProvider.overrideWithValue(const AppSettingProps()),
+              xboardUserProvider.overrideWith(
+                () => _StaticAuthNotifier(
+                  const UserAuthState(isInitialized: true),
+                ),
+              ),
+              crispSupportConfigProvider.overrideWithValue(
+                const CrispSupportConfig(enabled: false),
+              ),
+            ],
+            child: _localizedApp(const LoginPage()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text(appLocalizations.onlineSupport).first);
+        await tester.pumpAndSettle();
+
+        expect(find.byType(OnlineSupportPage), findsOneWidget);
+        final supportPage = tester.widget<OnlineSupportPage>(
+          find.byType(OnlineSupportPage),
+        );
+        expect(supportPage.standalone, true);
+        expect(find.byType(AppBar), findsOneWidget);
+        expect(find.text('在线客服暂未开放'), findsOneWidget);
+        expect(find.text('请通过官网或工单联系客服'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('opens configured Crisp support inside the app', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            storageServiceProvider.overrideWithValue(
+              XBoardStorageService(_MemoryStorage()),
+            ),
+            initializationProvider.overrideWith(
+              (ref) => _ReadyInitializationNotifier(ref),
+            ),
+            appSettingProvider.overrideWithValue(const AppSettingProps()),
+            xboardUserProvider.overrideWith(
+              () =>
+                  _StaticAuthNotifier(const UserAuthState(isInitialized: true)),
+            ),
+            crispSupportConfigProvider.overrideWithValue(
+              const CrispSupportConfig(
+                enabled: true,
+                websiteId: 'TEST_CRISP_WEBSITE_ID',
+              ),
+            ),
+            crispSupportEmbedBuilderProvider.overrideWithValue(
+              (uri) => Text('Crisp embed: ${uri.toString()}'),
+            ),
+          ],
+          child: _localizedApp(const LoginPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(appLocalizations.onlineSupport).first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OnlineSupportPage), findsOneWidget);
+      expect(find.textContaining('Crisp embed:'), findsOneWidget);
+      expect(find.textContaining('go.crisp.chat'), findsOneWidget);
+      expect(find.textContaining('TEST_CRISP_WEBSITE_ID'), findsOneWidget);
+      expect(find.text(appLocalizations.xboardLogin), findsNothing);
+      expect(find.text(appLocalizations.xboardForgotPassword), findsNothing);
+      expect(find.text(appLocalizations.xboardRegister), findsNothing);
+    });
+  });
+
+  group('Crisp support config', () {
+    test('builds Crisp embed URL without embedding secrets', () {
+      final uri = CrispSupportConfig.buildCrispEmbedUri(
+        'TEST_CRISP_WEBSITE_ID',
+      );
+
+      expect(uri.scheme, 'https');
+      expect(uri.host, 'go.crisp.chat');
+      expect(uri.path, '/chat/embed/');
+      expect(uri.queryParameters['website_id'], 'TEST_CRISP_WEBSITE_ID');
+      expect(uri.toString(), isNot(contains('token=')));
+      expect(uri.toString(), isNot(contains('auth_data')));
+      expect(uri.toString(), isNot(contains('password')));
+    });
+
+    test('missing website_id is unavailable and keeps fallback manual', () {
+      const config = CrispSupportConfig(
+        enabled: true,
+        fallbackUrl: 'https://www.example.com/support',
+      );
+
+      expect(config.isAvailable, false);
+      expect(config.crispUri, isNull);
+      expect(config.fallbackUri.toString(), 'https://www.example.com/support');
+    });
+
+    testWidgets('Crisp page does not trigger legacy WebSocket providers', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            crispSupportConfigProvider.overrideWithValue(
+              const CrispSupportConfig(
+                enabled: true,
+                websiteId: 'TEST_CRISP_WEBSITE_ID',
+              ),
+            ),
+            crispSupportEmbedBuilderProvider.overrideWithValue(
+              (uri) => Text('Crisp embed: ${uri.toString()}'),
+            ),
+            apiServiceProvider.overrideWith((ref) {
+              throw StateError('legacy API support should not be read');
+            }),
+            wsServiceProvider.overrideWith((ref) {
+              throw StateError('legacy WebSocket support should not be read');
+            }),
+          ],
+          child: _localizedApp(const OnlineSupportPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Crisp embed:'), findsOneWidget);
+      expect(find.textContaining('TEST_CRISP_WEBSITE_ID'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });
@@ -1633,6 +1823,15 @@ class _StaticAuthNotifier extends XBoardUserAuthNotifier {
 
   @override
   UserAuthState build() => _initialState;
+}
+
+class _ReadyInitializationNotifier extends XBoardInitializationNotifier {
+  _ReadyInitializationNotifier(super.ref) {
+    state = const InitializationState(status: InitializationStatus.ready);
+  }
+
+  @override
+  Future<void> initialize() async {}
 }
 
 DomainUser _domainUser({

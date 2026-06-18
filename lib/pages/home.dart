@@ -169,8 +169,7 @@ class CommonNavigationBar extends ConsumerWidget {
   Widget _buildIconWithBadge(PageLabel label, Widget icon, WidgetRef ref) {
     // 只有联系客服页面需要显示未读标记
     if (label == PageLabel.onlineSupport) {
-      final chatState = ref.watch(chatProvider);
-      final unreadCount = chatState.unreadCount;
+      final unreadCount = ref.watch(onlineSupportUnreadCountProvider);
 
       return BadgeIcon(
         icon: icon,

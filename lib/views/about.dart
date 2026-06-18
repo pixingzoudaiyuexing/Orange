@@ -9,36 +9,20 @@ import 'package:fl_clash/xboard/features/update_check/widgets/update_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-@immutable
-class Contributor {
-  final String avatar;
-  final String name;
-  final String link;
-
-  const Contributor({
-    required this.avatar,
-    required this.name,
-    required this.link,
-  });
-}
-
 class AboutView extends ConsumerWidget {
   const AboutView({super.key});
 
   _checkUpdate(BuildContext context, WidgetRef ref) async {
     final commonScaffoldState = context.commonScaffoldState;
     if (commonScaffoldState?.mounted != true) return;
-    
+
     try {
       // 显示加载状态并执行更新检查
-      await commonScaffoldState?.loadingRun<void>(
-        () async {
-          final updateNotifier = ref.read(updateCheckProvider.notifier);
-          await updateNotifier.checkForUpdates();
-        },
-        title: appLocalizations.checkUpdate,
-      );
-      
+      await commonScaffoldState?.loadingRun<void>(() async {
+        final updateNotifier = ref.read(updateCheckProvider.notifier);
+        await updateNotifier.checkForUpdates();
+      }, title: appLocalizations.checkUpdate);
+
       // 检查更新结果
       final updateState = ref.read(updateCheckProvider);
       if (updateState.hasUpdate) {
@@ -55,16 +39,16 @@ class AboutView extends ConsumerWidget {
           String errorMessage = '检查更新失败';
           if (updateState.error!.contains('530')) {
             errorMessage = '更新服务暂时不可用，请稍后重试';
-          } else if (updateState.error!.contains('SSL') || 
-                     updateState.error!.contains('HandshakeException') ||
-                     updateState.error!.contains('TLSV1_ALERT_INTERNAL_ERROR')) {
+          } else if (updateState.error!.contains('SSL') ||
+              updateState.error!.contains('HandshakeException') ||
+              updateState.error!.contains('TLSV1_ALERT_INTERNAL_ERROR')) {
             errorMessage = 'SSL连接失败，请检查网络或稍后重试';
           } else if (updateState.error!.contains('timeout')) {
             errorMessage = '网络连接超时，请检查网络连接';
           } else if (updateState.error!.contains('connection')) {
             errorMessage = '无法连接到更新服务器';
           }
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
@@ -91,10 +75,7 @@ class AboutView extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('检查更新失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('检查更新失败: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -111,68 +92,6 @@ class AboutView extends ConsumerWidget {
             _checkUpdate(context, ref);
           },
         ),
-        ListItem(
-          title: const Text("Telegram"),
-          onTap: () {
-            globalState.openUrl(
-              "https://t.me/FlClash",
-            );
-          },
-          trailing: const Icon(Icons.launch),
-        ),
-        ListItem(
-          title: Text(appLocalizations.project),
-          onTap: () {
-            globalState.openUrl(
-              "https://github.com/$repository",
-            );
-          },
-          trailing: const Icon(Icons.launch),
-        ),
-        ListItem(
-          title: Text(appLocalizations.core),
-          onTap: () {
-            globalState.openUrl(
-              "https://github.com/chen08209/Clash.Meta/tree/FlClash",
-            );
-          },
-          trailing: const Icon(Icons.launch),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildContributorsSection() {
-    const contributors = [
-      Contributor(
-        avatar: "assets/images/avatars/june2.jpg",
-        name: "June2",
-        link: "https://t.me/Jibadong",
-      ),
-      Contributor(
-        avatar: "assets/images/avatars/arue.jpg",
-        name: "Arue",
-        link: "https://t.me/xrcm6868",
-      ),
-    ];
-    return generateSection(
-      separated: false,
-      title: appLocalizations.otherContributors,
-      items: [
-        ListItem(
-          title: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Wrap(
-              spacing: 24,
-              children: [
-                for (final contributor in contributors)
-                  Avatar(
-                    contributor: contributor,
-                  ),
-              ],
-            ),
-          ),
-        )
       ],
     );
   }
@@ -184,103 +103,58 @@ class AboutView extends ConsumerWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Consumer(builder: (_, ref, ___) {
-              return _DeveloperModeDetector(
-                child: Wrap(
-                  spacing: 16,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Image.asset(
-                        'assets/images/icon.png',
-                        width: 64,
-                        height: 64,
-                      ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          appName,
-                          style: Theme.of(context).textTheme.headlineSmall,
+            Consumer(
+              builder: (_, ref, ___) {
+                return _DeveloperModeDetector(
+                  child: Wrap(
+                    spacing: 16,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Image.asset(
+                          'assets/images/icon.png',
+                          width: 64,
+                          height: 64,
                         ),
-                        Text(
-                          globalState.packageInfo.version,
-                          style: Theme.of(context).textTheme.labelLarge,
-                        )
-                      ],
-                    )
-                  ],
-                ),
-                onEnterDeveloperMode: () {
-                  ref.read(appSettingProvider.notifier).updateState(
-                        (state) => state.copyWith(developerMode: true),
-                      );
-                  context.showNotifier(appLocalizations.developerModeEnableTip);
-                },
-              );
-            }),
-            const SizedBox(
-              height: 24,
-            ),
-            Text(
-              appLocalizations.desc,
-              style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            appName,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          Text(
+                            globalState.packageInfo.version,
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  onEnterDeveloperMode: () {
+                    ref
+                        .read(appSettingProvider.notifier)
+                        .updateState(
+                          (state) => state.copyWith(developerMode: true),
+                        );
+                    context.showNotifier(
+                      appLocalizations.developerModeEnableTip,
+                    );
+                  },
+                );
+              },
             ),
           ],
         ),
       ),
-      const SizedBox(
-        height: 12,
-      ),
-      ..._buildContributorsSection(),
+      const SizedBox(height: 12),
       ..._buildMoreSection(context, ref),
     ];
     return Padding(
-      padding: kMaterialListPadding.copyWith(
-        top: 16,
-        bottom: 16,
-      ),
+      padding: kMaterialListPadding.copyWith(top: 16, bottom: 16),
       child: generateListView(items),
-    );
-  }
-}
-
-class Avatar extends StatelessWidget {
-  final Contributor contributor;
-
-  const Avatar({
-    super.key,
-    required this.contributor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      child: Column(
-        children: [
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: CircleAvatar(
-              foregroundImage: AssetImage(
-                contributor.avatar,
-              ),
-            ),
-          ),
-          const SizedBox(
-            height: 4,
-          ),
-          Text(
-            contributor.name,
-            style: context.textTheme.bodySmall,
-          )
-        ],
-      ),
-      onTap: () {
-        globalState.openUrl(contributor.link);
-      },
     );
   }
 }
@@ -327,9 +201,6 @@ class _DeveloperModeDetectorState extends State<_DeveloperModeDetector> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _handleTap,
-      child: widget.child,
-    );
+    return GestureDetector(onTap: _handleTap, child: widget.child);
   }
 }

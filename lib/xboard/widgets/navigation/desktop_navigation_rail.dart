@@ -18,7 +18,7 @@ class DesktopNavigationRail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatState = ref.watch(chatProvider);
+    final unreadCount = ref.watch(onlineSupportUnreadCountProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = colorScheme.brightness == Brightness.dark;
 
@@ -51,7 +51,7 @@ class DesktopNavigationRail extends ConsumerWidget {
           
           // 导航项
           Expanded(
-            child: _buildNavigationItems(context, colorScheme, chatState),
+            child: _buildNavigationItems(context, colorScheme, unreadCount),
           ),
           
           // 底部功能区
@@ -82,7 +82,7 @@ class DesktopNavigationRail extends ConsumerWidget {
   Widget _buildNavigationItems(
     BuildContext context,
     ColorScheme colorScheme,
-    ChatState chatState,
+    int unreadCount,
   ) {
     final appLocalizations = AppLocalizations.of(context);
     
@@ -125,11 +125,11 @@ class DesktopNavigationRail extends ConsumerWidget {
         NavigationRailDestination(
           icon: _buildIconWithBadge(
             const Icon(Icons.support_agent_outlined),
-            chatState.unreadCount,
+            unreadCount,
           ),
           selectedIcon: _buildIconWithBadge(
             const Icon(Icons.support_agent),
-            chatState.unreadCount,
+            unreadCount,
           ),
           label: Text(appLocalizations.onlineSupport),
         ),
@@ -166,4 +166,3 @@ class DesktopNavigationRail extends ConsumerWidget {
     );
   }
 }
-

@@ -1,28 +1,54 @@
 import 'config_entry.dart';
 
 /// 在线客服信息
-/// 
+///
 /// 扩展ConfigEntry，添加在线客服特有的属性
 class OnlineSupportInfo extends ConfigEntry {
+  final bool enabled;
+  final String provider;
+  final String crispWebsiteId;
+  final String fallbackUrl;
   final String apiBaseUrl;
   final String wsBaseUrl;
 
   const OnlineSupportInfo({
-    required String url,
-    required String description,
+    required super.url,
+    required super.description,
+    this.enabled = true,
+    this.provider = '',
+    this.crispWebsiteId = '',
+    this.fallbackUrl = '',
     required this.apiBaseUrl,
     required this.wsBaseUrl,
-    Map<String, dynamic>? metadata,
-  }) : super(url: url, description: description, metadata: metadata);
+    super.metadata,
+  });
 
   /// 从JSON创建在线客服信息
   factory OnlineSupportInfo.fromJson(Map<String, dynamic> json) {
+    final crisp = json['crisp'] is Map<String, dynamic>
+        ? json['crisp'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final provider = json['provider'] as String? ?? '';
+    final websiteId = crisp['website_id'] as String? ?? '';
+    final fallbackUrl = json['fallback_url'] as String? ?? '';
+    final metadata = <String, dynamic>{
+      if (json['metadata'] is Map<String, dynamic>)
+        ...(json['metadata'] as Map<String, dynamic>),
+      if (provider.isNotEmpty) 'provider': provider,
+      if (websiteId.isNotEmpty) 'crisp': {'website_id': websiteId},
+      if (fallbackUrl.isNotEmpty) 'fallback_url': fallbackUrl,
+    };
+
     return OnlineSupportInfo(
-      url: json['url'] as String? ?? '',
-      description: json['description'] as String? ?? '',
-      apiBaseUrl: json['apiBaseUrl'] as String? ?? '',
-      wsBaseUrl: json['wsBaseUrl'] as String? ?? '',
-      metadata: json['metadata'] as Map<String, dynamic>?,
+      url: fallbackUrl,
+      description: json['description'] as String? ?? 'Online support',
+      enabled: json['enabled'] as bool? ?? true,
+      provider: provider,
+      crispWebsiteId: websiteId,
+      fallbackUrl: fallbackUrl,
+      apiBaseUrl: '',
+      wsBaseUrl: '',
+      metadata: metadata.isEmpty ? null : metadata,
     );
   }
 
@@ -30,49 +56,49 @@ class OnlineSupportInfo extends ConfigEntry {
   Map<String, dynamic> toJson() {
     final json = super.toJson();
     json.addAll({
-      'apiBaseUrl': apiBaseUrl,
-      'wsBaseUrl': wsBaseUrl,
+      'enabled': enabled,
+      if (provider.isNotEmpty) 'provider': provider,
+      if (crispWebsiteId.isNotEmpty) 'crisp': {'website_id': crispWebsiteId},
+      if (fallbackUrl.isNotEmpty) 'fallback_url': fallbackUrl,
     });
     return json;
   }
 
+  bool get isCrisp => provider.toLowerCase() == 'crisp';
+
+  bool get hasCrispWebsiteId => crispWebsiteId.trim().isNotEmpty;
+
+  bool get hasValidCrispConfig => enabled && isCrisp && hasCrispWebsiteId;
+
   /// 验证URL格式
   bool validate() {
-    return _isValidUrl(apiBaseUrl) && _isValidUrl(wsBaseUrl) && 
-           _isValidHttpUrl(apiBaseUrl) && _isValidWebSocketUrl(wsBaseUrl);
+    if (!enabled) return true;
+    if (isCrisp) {
+      return hasCrispWebsiteId &&
+          (fallbackUrl.isEmpty || _isValidHttpUrl(fallbackUrl));
+    }
+    return false;
   }
 
   /// 获取验证错误信息
   List<String> getValidationErrors() {
     final errors = <String>[];
 
-    if (apiBaseUrl.isEmpty) {
-      errors.add('API base URL cannot be empty');
-    } else if (!_isValidUrl(apiBaseUrl)) {
-      errors.add('Invalid API base URL format: $apiBaseUrl');
-    } else if (!_isValidHttpUrl(apiBaseUrl)) {
-      errors.add('API base URL must use http or https protocol: $apiBaseUrl');
+    if (!enabled) return errors;
+
+    if (isCrisp) {
+      if (!hasCrispWebsiteId) {
+        errors.add('Crisp website_id is required');
+      }
+      if (fallbackUrl.isNotEmpty && !_isValidHttpUrl(fallbackUrl)) {
+        errors.add('Crisp fallback_url must be a valid HTTP/HTTPS URL');
+      }
+      return errors;
     }
 
-    if (wsBaseUrl.isEmpty) {
-      errors.add('WebSocket base URL cannot be empty');
-    } else if (!_isValidUrl(wsBaseUrl)) {
-      errors.add('Invalid WebSocket base URL format: $wsBaseUrl');
-    } else if (!_isValidWebSocketUrl(wsBaseUrl)) {
-      errors.add('WebSocket base URL must use ws or wss protocol: $wsBaseUrl');
-    }
+    errors.add('Online support only supports provider=crisp');
 
     return errors;
-  }
-
-  /// 检查是否为有效URL
-  bool _isValidUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.hasScheme && uri.host.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
   }
 
   /// 检查是否为有效的HTTP URL
@@ -85,18 +111,10 @@ class OnlineSupportInfo extends ConfigEntry {
     }
   }
 
-  /// 检查是否为有效的WebSocket URL
-  bool _isValidWebSocketUrl(String url) {
-    try {
-      final uri = Uri.parse(url);
-      return uri.scheme == 'ws' || uri.scheme == 'wss';
-    } catch (e) {
-      return false;
-    }
-  }
-
   @override
   String toString() {
-    return 'OnlineSupportInfo(apiBaseUrl: $apiBaseUrl, wsBaseUrl: $wsBaseUrl)';
+    return 'OnlineSupportInfo(enabled: $enabled, provider: $provider, '
+        'hasCrispWebsiteId: $hasCrispWebsiteId, '
+        'hasFallbackUrl: ${fallbackUrl.isNotEmpty})';
   }
 }

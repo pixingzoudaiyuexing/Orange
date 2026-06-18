@@ -516,3 +516,12 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
 
   return ChatNotifier(apiService: apiService, wsService: wsService);
 });
+
+final onlineSupportUnreadCountProvider = Provider<int>((ref) {
+  final apiService = ref.watch(apiServiceProvider);
+  final wsService = ref.watch(wsServiceProvider);
+  if (!apiService.isEnabled || !wsService.isEnabled) {
+    return 0;
+  }
+  return ref.watch(chatProvider).unreadCount;
+});

@@ -1,6 +1,7 @@
 import 'package:fl_clash/xboard/services/services.dart';
 import 'package:fl_clash/xboard/features/auth/providers/xboard_user_provider.dart';
 import 'package:fl_clash/xboard/features/initialization/initialization.dart';
+import 'package:fl_clash/xboard/features/online_support/pages/online_support_page.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +9,6 @@ import 'package:go_router/go_router.dart';
 import 'register_page.dart';
 import 'forgot_password_page.dart';
 import 'package:fl_clash/xboard/features/shared/shared.dart';
-import 'package:fl_clash/xboard/config/utils/config_file_loader.dart';
 import 'package:fl_clash/xboard/utils/xboard_notification.dart';
 import 'package:fl_clash/xboard/wyx_v2board/ui/wyx_v2board_backend.dart';
 
@@ -26,31 +26,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isPasswordVisible = false;
   late XBoardStorageService _storageService;
 
-  // 从配置文件加载的应用信息
-  String _appTitle = 'XBoard';
-  String _appWebsite = 'example.com';
-
   @override
   void initState() {
     super.initState();
     _storageService = ref.read(storageServiceProvider);
     _loadSavedCredentials();
-    _loadAppInfo();
 
     // ✅ 调用统一初始化服务
     _initializeXBoard();
-  }
-
-  /// 加载应用信息（标题和网站）
-  Future<void> _loadAppInfo() async {
-    final title = await ConfigFileLoaderHelper.getAppTitle();
-    final website = await ConfigFileLoaderHelper.getAppWebsite();
-    if (mounted) {
-      setState(() {
-        _appTitle = title;
-        _appWebsite = website;
-      });
-    }
   }
 
   @override
@@ -107,8 +90,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (mounted) {
         if (success) {
           if (_rememberPassword) {
-            final isWyxV2Board =
-                await ref.read(isWyxV2BoardBackendProvider.future);
+            final isWyxV2Board = await ref.read(
+              isWyxV2BoardBackendProvider.future,
+            );
             await _storageService.saveCredentials(
               _emailController.text,
               isWyxV2Board ? '' : _passwordController.text,
@@ -141,18 +125,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   void _navigateToRegister() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const RegisterPage()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const RegisterPage()));
     _loadSavedCredentials();
     _initializeXBoard(); // 重新初始化
   }
 
   void _navigateToForgotPassword() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (context) => const ForgotPasswordPage()));
     _initializeXBoard(); // 重新初始化
+  }
+
+  void _openOnlineSupport() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const OnlineSupportPage(standalone: true),
+      ),
+    );
   }
 
   @override
@@ -190,8 +182,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
         child: Center(
           child: SingleChildScrollView(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 32.0,
+              vertical: 24.0,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 400),
               child: Form(
@@ -204,30 +198,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       child: Column(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(16),
+                            width: 96,
+                            height: 96,
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: colorScheme.primary.withValues(alpha: 0.1),
                             ),
-                            child: Icon(
-                              Icons.vpn_key_outlined,
-                              size: 48,
-                              color: colorScheme.primary,
+                            child: Image.asset(
+                              'assets/images/icon.png',
+                              semanticLabel: appName,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Center(
+                                  child: Text(
+                                    appName,
+                                    style: textTheme.labelLarge?.copyWith(
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(height: 24),
                           Text(
-                            _appTitle,
+                            appName,
                             style: textTheme.displaySmall?.copyWith(
                               color: colorScheme.onSurface,
                               fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _appWebsite,
-                            style: textTheme.titleMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -316,8 +315,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(appLocalizations.xboardLogin),
                       ),
@@ -328,15 +328,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       children: [
                         TextButton(
                           onPressed: _navigateToForgotPassword,
-                          child: Text(
-                            appLocalizations.xboardForgotPassword,
-                          ),
+                          child: Text(appLocalizations.xboardForgotPassword),
+                        ),
+                        TextButton.icon(
+                          onPressed: _openOnlineSupport,
+                          icon: const Icon(Icons.support_agent_outlined),
+                          label: Text(appLocalizations.onlineSupport),
                         ),
                         TextButton(
                           onPressed: _navigateToRegister,
-                          child: Text(
-                            appLocalizations.xboardRegister,
-                          ),
+                          child: Text(appLocalizations.xboardRegister),
                         ),
                       ],
                     ),
@@ -387,11 +388,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                 ),
               )
-            : Icon(
-                statusIcon,
-                size: 12,
-                color: statusColor,
-              ),
+            : Icon(statusIcon, size: 12, color: statusColor),
       ],
     );
   }

@@ -71,17 +71,13 @@ the local YAML source URL must point only to this COS JSON document.
           "key_id": "production-key-id",
           "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----"
         },
-        "metadata": {
-          "backend_type": "wyx_v2board",
-          "secure_v2": {
-            "enabled": true,
-            "security_base_url": "https://security.example.com",
-            "key_id": "production-key-id",
-            "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A...\n-----END PUBLIC KEY-----"
-          }
-        },
         "online_support": {
-          "enabled": false
+          "enabled": true,
+          "provider": "crisp",
+          "crisp": {
+            "website_id": "YOUR_CRISP_WEBSITE_ID"
+          },
+          "fallback_url": "https://www.example.com/support"
         },
         "links": {
           "website": "https://www.example.com",
@@ -90,12 +86,6 @@ the local YAML source URL must point only to this COS JSON document.
         }
       }
     ]
-  },
-  "onlineSupport": [],
-  "links": {
-    "website": "https://www.example.com",
-    "forgot_password": "https://www.example.com/#/forgot-password",
-    "support": "https://www.example.com/support"
   },
   "subscription": {
     "prefer_encrypt": false
@@ -111,9 +101,31 @@ the local YAML source URL must point only to this COS JSON document.
 }
 ```
 
-The current parser keeps panel-item custom fields inside `metadata`, so the
-secure-v2 block is intentionally duplicated at `metadata.secure_v2`. Keep the
-top-level panel fields as well for forward compatibility and operator clarity.
+The current parser reads CloudGap online support from the current panel item
+only. Do not add top-level `online_support` or legacy `onlineSupport` blocks.
+
+## Crisp Online Support
+
+The only supported COS RemoteConfig shape for CloudGap online support is:
+
+```json
+{
+  "online_support": {
+    "enabled": true,
+    "provider": "crisp",
+    "crisp": {
+      "website_id": "YOUR_CRISP_WEBSITE_ID"
+    },
+    "fallback_url": "https://www.example.com/support"
+  }
+}
+```
+
+`website_id` is the public Crisp Website ID. Do not put Crisp API tokens,
+Crisp secrets, WebSocket support fields, user credentials, app tokens,
+`auth_data`, or subscription URLs in RemoteConfig. If Crisp is not ready, set
+`online_support.enabled=false` and keep a safe `links.support` or
+`fallback_url` for operators.
 
 ## Public Key Format
 
@@ -147,6 +159,8 @@ examples with real data, logs, commits, or build artifacts:
 - full `subscribe_url`
 - cookies
 - database credentials
+- Crisp API Token
+- Crisp Secret
 
 ## Preflight Checks
 
@@ -161,7 +175,7 @@ rg -n "SEC_PASSWORD|BACKEND_DOMAIN|PRIVATE KEY|BEGIN OPENSSH|BEGIN RSA|BEGIN PRI
   --glob '!secure-v2-public.pem' \
   --glob '!**/*.pem'
 curl -fsSL "https://your-cos-bucket.example.com/config/remote_config.json?v=202606180001" \
-  | jq '.panels.mihomo[0] | {panelType, panel_type, backend_type, url, description, has_secure_v2: (.metadata.secure_v2 != null)}'
+  | jq '.panels.mihomo[0] | {panelType, panel_type, backend_type, url, description, has_secure_v2: (.secure_v2 != null)}'
 ```
 
 For app validation, temporarily put the production COS URL into the ignored
@@ -175,7 +189,7 @@ Expected runtime checks:
 
 - Logs show the COS HTTPS source, not `127.0.0.1`.
 - `panelType`, `panel_type`, and `backend_type` are present.
-- secure-v2 initializes from `metadata.secure_v2`.
+- secure-v2 initializes from the current panel item's `secure_v2`.
 - Login succeeds.
 - wyx subscription import succeeds.
 - Real Clash/Mihomo groups appear.

@@ -6,10 +6,10 @@ import 'online_support_info.dart';
 import 'subscription_info.dart';
 
 /// 解析后的配置数据
-/// 
+///
 /// 包含所有类型的配置信息
 class ParsedConfiguration {
-  final String panelType;  // 面板类型：xboard 或 v2board
+  final String panelType; // 面板类型：xboard 或 v2board
   final PanelConfiguration panels;
   final List<ProxyInfo> proxies;
   final List<WebSocketInfo> webSockets;
@@ -48,11 +48,15 @@ class ParsedConfiguration {
     final proxyList = json['proxy'] as List<dynamic>? ?? [];
     final wsList = json['ws'] as List<dynamic>? ?? [];
     final updateList = json['update'] as List<dynamic>? ?? [];
-    final onlineSupportList = json['onlineSupport'] as List<dynamic>? ?? [];
+    final onlineSupportList = _collectOnlineSupportConfigs(
+      json,
+      panelsData,
+      currentProvider,
+    );
     final subscriptionData = json['subscription'] as Map<String, dynamic>?;
 
     return ParsedConfiguration(
-      panelType: panelType,  // 面板类型
+      panelType: panelType, // 面板类型
       panels: PanelConfiguration.fromJson(panelsData, currentProvider),
       proxies: proxyList
           .map((item) => ProxyInfo.fromJson(item as Map<String, dynamic>))
@@ -64,13 +68,66 @@ class ParsedConfiguration {
           .map((item) => UpdateInfo.fromJson(item as Map<String, dynamic>))
           .toList(),
       onlineSupport: onlineSupportList
-          .map((item) => OnlineSupportInfo.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => OnlineSupportInfo.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
-      subscription: subscriptionData != null ? SubscriptionInfo.fromJson(subscriptionData) : null,
+      subscription: subscriptionData != null
+          ? SubscriptionInfo.fromJson(subscriptionData)
+          : null,
       parsedAt: DateTime.now(),
       sourceHash: json.hashCode.toString(),
-      metadata: ConfigMetadata.fromJson(json['metadata'] as Map<String, dynamic>? ?? {}),
+      metadata: ConfigMetadata.fromJson(
+        json['metadata'] as Map<String, dynamic>? ?? {},
+      ),
     );
+  }
+
+  static List<dynamic> _collectOnlineSupportConfigs(
+    Map<String, dynamic> json,
+    Map<String, dynamic> panelsData,
+    String currentProvider,
+  ) {
+    final configs = <dynamic>[];
+
+    final currentPanels = panelsData[currentProvider];
+    if (currentPanels is List) {
+      for (final panel in currentPanels) {
+        if (panel is! Map<String, dynamic>) continue;
+        configs.addAll(
+          _asConfigList(panel['online_support'])
+              .whereType<Map<String, dynamic>>()
+              .where(_isSupportedOnlineSupportConfig),
+        );
+      }
+    }
+
+    return configs;
+  }
+
+  static List<dynamic> _asConfigList(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) return value;
+    if (value is Map<String, dynamic>) return [value];
+    return const [];
+  }
+
+  static bool _isSupportedOnlineSupportConfig(Map<String, dynamic> config) {
+    if (config['enabled'] == false) return true;
+    if (config['provider']?.toString().toLowerCase() != 'crisp') {
+      return false;
+    }
+    final crisp = config['crisp'];
+    if (crisp is! Map<String, dynamic>) return false;
+    final websiteId = crisp['website_id'];
+    if (websiteId is! String || websiteId.trim().isEmpty) return false;
+    final fallbackUrl = config['fallback_url'];
+    if (fallbackUrl == null || fallbackUrl == '') return true;
+    if (fallbackUrl is! String) return false;
+    final uri = Uri.tryParse(fallbackUrl);
+    return uri != null &&
+        uri.host.isNotEmpty &&
+        (uri.scheme == 'http' || uri.scheme == 'https');
   }
 
   /// 获取第一个可用的WebSocket URL
@@ -115,7 +172,10 @@ class ParsedConfiguration {
 
   /// 构建订阅URL
   String? buildSubscriptionUrl(String token, {bool preferEncrypt = true}) {
-    return subscription?.buildSubscriptionUrl(token, forceEncrypt: preferEncrypt);
+    return subscription?.buildSubscriptionUrl(
+      token,
+      forceEncrypt: preferEncrypt,
+    );
   }
 
   /// 转换为JSON
@@ -125,7 +185,7 @@ class ParsedConfiguration {
       'proxy': proxies.map((e) => e.toJson()).toList(),
       'ws': webSockets.map((e) => e.toJson()).toList(),
       'update': updates.map((e) => e.toJson()).toList(),
-      'onlineSupport': onlineSupport.map((e) => e.toJson()).toList(),
+      'online_support': onlineSupport.map((e) => e.toJson()).toList(),
       if (subscription != null) 'subscription': subscription!.toJson(),
       'parsedAt': parsedAt.toIso8601String(),
       'sourceHash': sourceHash,
@@ -136,9 +196,9 @@ class ParsedConfiguration {
   @override
   String toString() {
     return 'ParsedConfiguration(panels: $panels, proxies: ${proxies.length}, '
-           'ws: ${webSockets.length}, updates: ${updates.length}, '
-           'onlineSupport: ${onlineSupport.length}, '
-           'subscription: ${subscription != null ? subscription!.urls.length : 0})';
+        'ws: ${webSockets.length}, updates: ${updates.length}, '
+        'onlineSupport: ${onlineSupport.length}, '
+        'subscription: ${subscription != null ? subscription!.urls.length : 0})';
   }
 }
 
@@ -159,7 +219,9 @@ class ConfigMetadata {
   factory ConfigMetadata.fromJson(Map<String, dynamic> json) {
     return ConfigMetadata(
       sources: (json['sources'] as List<dynamic>?)?.cast<String>() ?? [],
-      lastUpdated: DateTime.tryParse(json['lastUpdated'] as String? ?? '') ?? DateTime.now(),
+      lastUpdated:
+          DateTime.tryParse(json['lastUpdated'] as String? ?? '') ??
+          DateTime.now(),
       version: json['version'] as String? ?? '1.0.0',
       statistics: json['statistics'] as Map<String, dynamic>? ?? {},
     );

@@ -252,6 +252,12 @@ class XBoardConfig {
   
   /// 获取第一个更新URL
   static String? get updateUrl => _accessor.getFirstUpdateUrl();
+
+  /// 获取 Crisp Website ID
+  static String? get crispWebsiteId => _accessor.getCrispWebsiteId();
+
+  /// 获取 Crisp fallback URL
+  static String? get crispFallbackUrl => _accessor.getCrispFallbackUrl();
   
   /// 获取面板配置列表
   static List<ConfigEntry> get panelList => _accessor.getPanelConfigList();
