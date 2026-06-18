@@ -402,7 +402,10 @@ class RemoteConfigManager {
        _enableConcurrentFetch = enableConcurrentFetch;
 
   /// 从配置设置创建RemoteConfigManager
-  factory RemoteConfigManager.fromSettings(RemoteConfigSettings settings) {
+  factory RemoteConfigManager.fromSettings(
+    RemoteConfigSettings settings, {
+    IHttpClient? plainJsonHttpClient,
+  }) {
     final sources = <ConfigSource>[];
 
     for (final sourceConfig in settings.sources) {
@@ -416,8 +419,10 @@ class RemoteConfigManager {
           );
           break;
         case 'local':
+        case 'cos':
           sources.add(
             PlainJsonConfigSource(
+              httpClient: plainJsonHttpClient,
               name: sourceConfig.name,
               url: sourceConfig.url,
               timeout: sourceConfig.timeout ?? settings.timeout,
@@ -458,12 +463,14 @@ class RemoteConfigManager {
       throw Exception('没有可用的配置源');
     }
 
-    // 查找普通 JSON 和 Gitee 配置源。local 调试源复用普通 JSON 拉取逻辑。
+    // 查找普通 JSON 和 Gitee 配置源。local/COS 源复用普通 JSON 拉取逻辑。
     ConfigSource? redirectSource;
     ConfigSource? giteeSource;
 
     for (final source in _configSources) {
-      if (source.sourceName == 'redirect' || source.sourceName == 'local') {
+      if (source.sourceName == 'redirect' ||
+          source.sourceName == 'local' ||
+          source.sourceName == 'cos') {
         redirectSource = source;
       } else if (source.sourceName == 'gitee') {
         giteeSource = source;

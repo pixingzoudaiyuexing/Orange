@@ -152,12 +152,15 @@ class XBoardConfigAccessor {
         case 'local':
           result = await _remoteManager.fetchFromSource('local');
           break;
+        case 'cos':
+          result = await _remoteManager.fetchFromSource('cos');
+          break;
         case 'gitee':
           result = await _remoteManager.getGiteeConfig();
           break;
         default:
           result = ConfigResult.failure(
-            'Unknown source: $sourceName. Only remote sources (redirect, local, gitee) are supported.',
+            'Unknown source: $sourceName. Only remote sources (redirect, local, cos, gitee) are supported.',
             sourceName,
           );
       }
