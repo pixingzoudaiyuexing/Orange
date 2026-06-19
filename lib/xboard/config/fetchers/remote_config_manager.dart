@@ -109,7 +109,6 @@ class SimpleHttpClient implements IHttpClient {
     HttpClient? client;
     try {
       client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
       client.connectionTimeout = timeout ?? const Duration(seconds: 10);
 
       final request = await client.getUrl(Uri.parse(url));
@@ -350,7 +349,6 @@ class RemoteConfigSource {
   Future<ConfigResult<Map<String, dynamic>>> fetch() async {
     try {
       final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
       client.connectionTimeout = timeout;
 
       final uri = Uri.parse(url);

@@ -28,7 +28,7 @@ class StatusReportingService {
     final nodeId = await NodeIdManager.getNodeId();
     _logger.debug('原始WebSocket URL: $_wsUrl');
     _logger.debug('Node ID: $nodeId');
-    final fullWsUrl = _wsUrl.endsWith('/') ? '${_wsUrl}$nodeId' : '$_wsUrl/$nodeId';
+    final fullWsUrl = _wsUrl.endsWith('/') ? '$_wsUrl$nodeId' : '$_wsUrl/$nodeId';
     _logger.debug('完整WebSocket URL: $fullWsUrl');
     
     _logger.info('尝试连接 WebSocket: $fullWsUrl (Node ID: $nodeId)');
@@ -38,16 +38,11 @@ class StatusReportingService {
         headers['Authorization'] = 'Bearer $authToken';
       }
       
-      // Use IOWebSocketChannel.connect with headers and custom HTTP client for SSL bypass
+      // Use IOWebSocketChannel.connect with headers and system TLS validation.
       _channel = IOWebSocketChannel.connect(
         fullWsUrl,
         headers: headers,
-        customClient: () {
-          final client = HttpClient();
-          // 忽略SSL证书验证错误（仅用于WebSocket连接）
-          client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-          return client;
-        }(),
+        customClient: HttpClient(),
       );
 
       _subscription = _channel!.stream.listen(

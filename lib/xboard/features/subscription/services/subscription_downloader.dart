@@ -294,10 +294,9 @@ class SubscriptionDownloader {
         throw Exception('任务已取消');
       }
 
-      // 创建 HttpClient
+      // 创建 HttpClient。证书校验使用系统默认策略，发布版不能绕过 TLS。
       client = HttpClient();
       client.connectionTimeout = _downloadTimeout;
-      client.badCertificateCallback = (cert, host, port) => true;
 
       // 如果使用代理，配置 SOCKS5 代理
       if (useProxy && proxyUrl != null) {

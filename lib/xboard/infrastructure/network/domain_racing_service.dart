@@ -17,6 +17,8 @@ final _logger = FileLogger('domain_racing_service.dart');
 class DomainRacingService {
   static const Duration _connectionTimeout = Duration(seconds: 5);
   static const Duration _responseTimeout = Duration(seconds: 8);
+  static const bool _isStableBuild =
+      String.fromEnvironment('APP_ENV') == 'stable';
   
   /// 设置证书路径（由配置加载器调用）
   static void setCertificatePath(String path) {
@@ -202,6 +204,18 @@ class DomainRacingService {
       // 根据域名类型选择HttpClient配置
       final withoutProtocol = domain.replaceFirst(RegExp(r'^https?://'), '');
       final isIpWithPort = _isIpWithPort(withoutProtocol);
+
+      if (_isStableBuild && isIpWithPort) {
+        stopwatch.stop();
+        _logger.warning('[域名竞速] APP_ENV=stable 下禁用 IP+端口竞速，避免绕过 TLS 证书校验');
+        return DomainTestResult.failure(
+          domain,
+          'stable build disables IP racing without hostname validation',
+          stopwatch.elapsedMilliseconds,
+          useProxy: useProxy,
+          proxyUrl: proxyUrl,
+        );
+      }
       
       HttpClient client;
 
@@ -230,6 +244,7 @@ class DomainRacingService {
         _logger.info('[域名竞速] 域名 #$index 配置SOCKS5代理: ${proxyConfig['host']}:${proxyConfig['port']}');
       }
       
+      // TODO: 用 SNI + 主机名证书校验替换旧 IP+端口方案后，再允许 stable 构建启用。
       // 配置证书验证（必须在配置代理之后设置）
       if (isIpWithPort) {
         // IP+端口：完全忽略证书验证
@@ -536,4 +551,3 @@ class CancelToken {
     _isCancelled = true;
   }
 }
-
