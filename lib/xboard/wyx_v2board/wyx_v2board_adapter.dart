@@ -53,6 +53,9 @@ abstract interface class WyxV2BoardAdapterApi {
   void logout();
   Future<WyxUserInfo> getUserInfo();
   Future<WyxSubscribeInfo> getSubscribeInfo();
+  Future<WyxSubscriptionProfile> getMihomoSubscriptionProfile({
+    String provider = 'mihomo',
+  });
   Future<String?> getSubscribeUrl();
   Future<List<WyxNodeInfo>> getNodeList();
   Future<List<WyxPlanInfo>> getPlanList();
@@ -75,16 +78,13 @@ class WyxV2BoardAdapter implements WyxV2BoardAdapterApi {
   WyxV2BoardAdapter({
     required WyxV2BoardSecureClient client,
     SensitiveLogMasker masker = const SensitiveLogMasker(),
-  })  : _client = client,
-        _masker = masker;
+  }) : _client = client,
+       _masker = masker;
 
   WyxV2BoardAdapter.withSecureHttpClient(
     SecureHttpClient client, {
     SensitiveLogMasker masker = const SensitiveLogMasker(),
-  }) : this(
-          client: SecureHttpWyxV2BoardClient(client),
-          masker: masker,
-        );
+  }) : this(client: SecureHttpWyxV2BoardClient(client), masker: masker);
 
   @override
   WyxAuthSession? get currentSession => _session;
@@ -100,10 +100,7 @@ class WyxV2BoardAdapter implements WyxV2BoardAdapterApi {
   Future<WyxLoginResult> login(String email, String password) async {
     final response = await _post(
       WyxV2BoardApi.login,
-      body: {
-        'email': email,
-        'password': password,
-      },
+      body: {'email': email, 'password': password},
       requiresAuth: false,
       operation: 'login',
     );
@@ -155,19 +152,52 @@ class WyxV2BoardAdapter implements WyxV2BoardAdapterApi {
   }
 
   @override
+  Future<WyxSubscriptionProfile> getMihomoSubscriptionProfile({
+    String provider = 'mihomo',
+  }) async {
+    final response = await _post(
+      WyxV2BoardApi.subscriptionMihomo,
+      body: {
+        'backend_type': 'wyx_v2board',
+        'provider': provider,
+        'format': 'clash',
+        'user_agent_preference': const [
+          'Clash.Meta',
+          'mihomo',
+          'ClashforWindows',
+        ],
+      },
+      operation: 'subscriptionMihomo',
+    );
+    final profile = WyxV2BoardMapper.subscriptionProfile(
+      _dataMap(response, operation: 'subscriptionMihomo'),
+    );
+    if (profile.content.trim().isEmpty) {
+      throw WyxV2BoardException(
+        code: WyxV2BoardErrorCode.invalidResponse,
+        message: 'Subscription profile content is empty',
+        statusCode: response.status,
+        requestId: response.requestId,
+        safeDebugMessage: 'subscriptionMihomo empty content',
+      );
+    }
+    return profile;
+  }
+
+  @override
   Future<List<WyxNodeInfo>> getNodeList() async {
     final response = await _get(WyxV2BoardApi.nodeList, operation: 'nodeList');
-    return WyxV2BoardMapper.listMaps(_data(response))
-        .map(WyxV2BoardMapper.nodeInfo)
-        .toList(growable: false);
+    return WyxV2BoardMapper.listMaps(
+      _data(response),
+    ).map(WyxV2BoardMapper.nodeInfo).toList(growable: false);
   }
 
   @override
   Future<List<WyxPlanInfo>> getPlanList() async {
     final response = await _get(WyxV2BoardApi.planList, operation: 'planList');
-    return WyxV2BoardMapper.listMaps(_data(response))
-        .map(WyxV2BoardMapper.planInfo)
-        .toList(growable: false);
+    return WyxV2BoardMapper.listMaps(
+      _data(response),
+    ).map(WyxV2BoardMapper.planInfo).toList(growable: false);
   }
 
   @override
@@ -176,9 +206,9 @@ class WyxV2BoardAdapter implements WyxV2BoardAdapterApi {
       WyxV2BoardApi.noticeList,
       operation: 'noticeList',
     );
-    return WyxV2BoardMapper.listMaps(_data(response))
-        .map(WyxV2BoardMapper.notice)
-        .toList(growable: false);
+    return WyxV2BoardMapper.listMaps(
+      _data(response),
+    ).map(WyxV2BoardMapper.notice).toList(growable: false);
   }
 
   @override
@@ -198,9 +228,9 @@ class WyxV2BoardAdapter implements WyxV2BoardAdapterApi {
       WyxV2BoardApi.orderList,
       operation: 'orderList',
     );
-    return WyxV2BoardMapper.listMaps(_data(response))
-        .map(WyxV2BoardMapper.orderInfo)
-        .toList(growable: false);
+    return WyxV2BoardMapper.listMaps(
+      _data(response),
+    ).map(WyxV2BoardMapper.orderInfo).toList(growable: false);
   }
 
   @override

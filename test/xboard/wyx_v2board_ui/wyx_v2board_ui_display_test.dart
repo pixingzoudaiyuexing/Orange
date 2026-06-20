@@ -41,6 +41,19 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+const _fixtureClashYaml = '''
+proxies:
+  - name: hk-01
+    type: vless
+proxy-groups:
+  - name: CloudGap
+    type: select
+    proxies:
+      - hk-01
+rules:
+  - MATCH,CloudGap
+''';
+
 void main() {
   String fixtureSubscribeUrl() => Uri.https('security.example', '/sub', {
     'token': 'fixture-subscribe-token',
@@ -554,7 +567,7 @@ void main() {
     });
 
     test(
-      'login imports wyx subscription as non-persistent profile source',
+      'login imports wyx subscription through secure-v2 proxy content',
       () async {
         final subscribeUrl = fixtureSubscribeUrl();
         final adapter = _FakeWyxAdapter(subscribeUrl: subscribeUrl);
@@ -570,9 +583,9 @@ void main() {
         final success = await container
             .read(xboardUserProvider.notifier)
             .login('user@example.com', 'secret-password');
-        await _waitFor(() => importService.calls.isNotEmpty);
+        await _waitFor(() => importService.contentCalls.isNotEmpty);
 
-        final call = importService.calls.single;
+        final call = importService.contentCalls.single;
         final authState = container.read(xboardUserProvider);
         final storedSubscription =
             (await container
@@ -582,10 +595,14 @@ void main() {
         final importState = container.read(profileImportProvider);
 
         expect(success, true);
-        expect(call.url, subscribeUrl);
-        expect(call.persistUrl, false);
+        expect(adapter.subscriptionProfileCalls, 1);
+        expect(adapter.lastSubscriptionProvider, 'mihomo');
+        expect(adapter.getSubscribeUrlCalls, 0);
+        expect(importService.calls, isEmpty);
+        expect(call.content, _fixtureClashYaml);
         expect(call.source, wyxV2BoardProfileSource);
-        expect(call.allowEncryptedService, false);
+        expect(call.contentType, 'text/yaml');
+        expect(call.userAgentLabel, 'Clash.Meta');
         expect(importService.applyProfileCalled, true);
         expect(importState.currentUrl, isEmpty);
         expect(importState.lastResult?.profile?.url, isEmpty);
@@ -620,7 +637,7 @@ void main() {
         final success = await container
             .read(xboardUserProvider.notifier)
             .login('user@example.com', 'secret-password');
-        await _waitFor(() => importService.calls.isNotEmpty);
+        await _waitFor(() => importService.contentCalls.isNotEmpty);
 
         expect(success, true);
         expect(container.read(xboardUserProvider).isAuthenticated, true);
@@ -837,14 +854,19 @@ void main() {
         final restored = await container
             .read(wyxV2BoardUiControllerProvider.notifier)
             .restoreSession();
-        await _waitFor(() => importService.calls.isNotEmpty);
+        await _waitFor(() => importService.contentCalls.isNotEmpty);
 
         expect(restored, true);
-        expect(importService.calls.single.persistUrl, false);
-        expect(importService.calls.single.source, wyxV2BoardProfileSource);
-        expect(importService.calls.single.url, startsWith('https://'));
+        expect(adapter.subscriptionProfileCalls, 1);
+        expect(adapter.subscribeInfoCalls, 0);
+        expect(importService.calls, isEmpty);
         expect(
-          importService.calls.single.toString(),
+          importService.contentCalls.single.source,
+          wyxV2BoardProfileSource,
+        );
+        expect(importService.contentCalls.single.content, _fixtureClashYaml);
+        expect(
+          importService.contentCalls.single.toString(),
           isNot(contains('fixture-subscribe-token')),
         );
       },
@@ -1166,6 +1188,122 @@ rules:
     );
 
     test(
+      'content import failure returns failure and keeps previous profile state',
+      () async {
+        const previous = Profile(
+          id: 'old-profile',
+          label: 'old profile',
+          autoUpdateDuration: Duration(hours: 24),
+        );
+        const downloaded = Profile(
+          id: 'new-secure-profile',
+          label: wyxV2BoardProfileLabel,
+          url: '',
+          autoUpdateDuration: Duration(hours: 24),
+        );
+        final env = _installProfileImportTestGlobalState(
+          profiles: [previous],
+          currentProfileId: previous.id,
+          groups: [
+            const Group(
+              type: GroupType.Selector,
+              name: 'Proxy',
+              now: '旧节点',
+              all: [Proxy(name: '旧节点', type: 'VLESS')],
+            ),
+          ],
+        );
+        addTearDown(env.restore);
+        final cleaned = <String>[];
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        final service = _profileImportServiceForTest(
+          container,
+          downloader:
+              (
+                String url, {
+                required bool persistUrl,
+                String? source,
+                required bool allowEncryptedService,
+              }) async {
+                throw StateError('direct URL downloader must not be called');
+              },
+          contentBuilder:
+              (
+                String content, {
+                required String label,
+                String? contentType,
+                String? userAgentLabel,
+              }) async {
+                expect(content, _fixtureClashYaml);
+                return downloaded;
+              },
+          applyRunner: () async {
+            throw Exception('apply failed: token=secret');
+          },
+          cleaner: cleaned.add,
+        );
+
+        final result = await service.importSubscriptionContent(
+          _fixtureClashYaml,
+          source: wyxV2BoardProfileSource,
+          contentType: 'text/yaml',
+          userAgentLabel: 'Clash.Meta',
+        );
+
+        expect(result.isSuccess, false);
+        expect(result.errorMessage, isNot(contains('token=secret')));
+        expect(globalState.config.currentProfileId, previous.id);
+        expect(globalState.config.profiles, [previous]);
+        expect(globalState.appState.groups.single.now, '旧节点');
+        expect(cleaned, [downloaded.id]);
+      },
+    );
+
+    test(
+      'content import rejects empty and HTML middleware responses',
+      () async {
+        final env = _installProfileImportTestGlobalState(
+          profiles: const [],
+          currentProfileId: null,
+        );
+        addTearDown(env.restore);
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        final service = _profileImportServiceForTest(
+          container,
+          downloader:
+              (
+                String url, {
+                required bool persistUrl,
+                String? source,
+                required bool allowEncryptedService,
+              }) async {
+                throw StateError('direct URL downloader must not be called');
+              },
+          applyRunner: () async {
+            throw StateError('apply should not be called');
+          },
+          cleaner: (_) {},
+        );
+
+        final emptyResult = await service.importSubscriptionContent(
+          '',
+          source: wyxV2BoardProfileSource,
+        );
+        final htmlResult = await service.importSubscriptionContent(
+          '<html>login</html>',
+          source: wyxV2BoardProfileSource,
+        );
+
+        expect(emptyResult.isSuccess, false);
+        expect(htmlResult.isSuccess, false);
+        expect(globalState.config.currentProfileId, isNull);
+        expect(globalState.config.profiles, isEmpty);
+      },
+    );
+
+    test(
       'apply success switches current profile before cleaning old wyx profile',
       () async {
         const oldWyx = Profile(
@@ -1355,6 +1493,7 @@ rules:
 XBoardProfileImportService _profileImportServiceForTest(
   ProviderContainer container, {
   required ProfileDownloader downloader,
+  ProfileContentBuilder? contentBuilder,
   required ProfileApplyRunner applyRunner,
   required ProfileEffectCleaner cleaner,
 }) {
@@ -1362,6 +1501,7 @@ XBoardProfileImportService _profileImportServiceForTest(
     (ref) => XBoardProfileImportService(
       ref,
       profileDownloader: downloader,
+      profileContentBuilder: contentBuilder,
       profileApplyRunner: applyRunner,
       profileEffectCleaner: cleaner,
     ),
@@ -1374,6 +1514,7 @@ ProviderContainer _container({
   _MemoryStorage? storage,
   _FakeProfileImportService? importService,
 }) {
+  final resolvedImportService = importService ?? _FakeProfileImportService();
   return ProviderContainer(
     overrides: [
       isWyxV2BoardBackendProvider.overrideWith((ref) async => true),
@@ -1383,8 +1524,9 @@ ProviderContainer _container({
       wyxV2BoardAdapterProvider.overrideWith(
         (ref) async => adapter ?? _FakeWyxAdapter(),
       ),
-      if (importService != null)
-        xboardProfileImportServiceProvider.overrideWithValue(importService),
+      xboardProfileImportServiceProvider.overrideWithValue(
+        resolvedImportService,
+      ),
     ],
   );
 }
@@ -1399,6 +1541,10 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
   String subscribeUrl;
   int inviteCalls = 0;
   int nodeCalls = 0;
+  int subscribeInfoCalls = 0;
+  int getSubscribeUrlCalls = 0;
+  int subscriptionProfileCalls = 0;
+  String? lastSubscriptionProvider;
   String? lastPassword;
 
   _FakeWyxAdapter({this.loginError, this.nodes, this.subscribeUrl = ''});
@@ -1449,6 +1595,7 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
 
   @override
   Future<WyxSubscribeInfo> getSubscribeInfo() async {
+    subscribeInfoCalls += 1;
     return WyxSubscribeInfo(
       planId: 3,
       token: 'subscribe-token',
@@ -1474,7 +1621,24 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
 
   @override
   Future<String?> getSubscribeUrl() async {
+    getSubscribeUrlCalls += 1;
     return (await getSubscribeInfo()).subscribeUrl;
+  }
+
+  @override
+  Future<WyxSubscriptionProfile> getMihomoSubscriptionProfile({
+    String provider = 'mihomo',
+  }) async {
+    subscriptionProfileCalls += 1;
+    lastSubscriptionProvider = provider;
+    return const WyxSubscriptionProfile(
+      provider: 'mihomo',
+      format: 'yaml',
+      content: _fixtureClashYaml,
+      contentType: 'text/yaml',
+      uaUsed: 'Clash.Meta',
+      source: 'middleware_subscription_proxy',
+    );
   }
 
   @override
@@ -1569,6 +1733,7 @@ class _FakeWyxAdapter implements WyxV2BoardAdapterApi {
 class _FakeProfileImportService implements ProfileImportServiceApi {
   final bool shouldFail;
   final calls = <_ImportCall>[];
+  final contentCalls = <_ContentImportCall>[];
   bool applyProfileCalled = false;
 
   _FakeProfileImportService({this.shouldFail = false});
@@ -1611,6 +1776,40 @@ class _FakeProfileImportService implements ProfileImportServiceApi {
   }
 
   @override
+  Future<ImportResult> importSubscriptionContent(
+    String content, {
+    Function(ImportStatus, double, String?)? onProgress,
+    String? source,
+    String? contentType,
+    String? userAgentLabel,
+  }) async {
+    contentCalls.add(
+      _ContentImportCall(
+        content: content,
+        source: source,
+        contentType: contentType,
+        userAgentLabel: userAgentLabel,
+      ),
+    );
+    if (shouldFail) {
+      onProgress?.call(ImportStatus.failed, 0.0, '导入失败，请稍后重试');
+      return ImportResult.failure(
+        errorMessage: '导入失败，请稍后重试',
+        errorType: ImportErrorType.downloadError,
+      );
+    }
+    applyProfileCalled = true;
+    final profile = Profile.normal(
+      label: source == wyxV2BoardProfileSource
+          ? wyxV2BoardProfileLabel
+          : 'subscription',
+      url: '',
+    );
+    onProgress?.call(ImportStatus.success, 1.0, '导入成功');
+    return ImportResult.success(profile: profile);
+  }
+
+  @override
   Future<ImportResult> importSubscriptionWithRetry(
     String url, {
     Function(ImportStatus, double, String?)? onProgress,
@@ -1646,6 +1845,26 @@ class _ImportCall {
   String toString() {
     return '_ImportCall(persistUrl: $persistUrl, source: $source, '
         'allowEncryptedService: $allowEncryptedService, url: [MASKED])';
+  }
+}
+
+class _ContentImportCall {
+  final String content;
+  final String? source;
+  final String? contentType;
+  final String? userAgentLabel;
+
+  const _ContentImportCall({
+    required this.content,
+    required this.source,
+    required this.contentType,
+    required this.userAgentLabel,
+  });
+
+  @override
+  String toString() {
+    return '_ContentImportCall(length: ${content.length}, source: $source, '
+        'contentType: $contentType, userAgentLabel: $userAgentLabel)';
   }
 }
 

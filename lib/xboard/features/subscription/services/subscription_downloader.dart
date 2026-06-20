@@ -92,21 +92,10 @@ class SubscriptionDownloader {
         throw lastError ?? Exception('订阅下载失败');
       }
       if (!normalized.hasUsableNodeSource) {
-        final summary = SubscriptionContentSummary.from(result.content);
-        if (summary.hasBase64LikeContent ||
-            summary.protocolCounts.values.any((count) => count > 0)) {
-          throw Exception('订阅接口未返回 Clash/Mihomo 格式，请检查 User-Agent 或订阅转换');
-        }
-        throw Exception('订阅接口未返回 Clash/Mihomo 节点');
+        _throwNoUsableNodeError(result.content);
       }
 
-      final validationMessage = await clashCore.validateConfig(
-        normalized.content,
-      );
-      if (validationMessage.isNotEmpty) {
-        throw Exception('配置验证失败: $validationMessage');
-      }
-      _logger.info('✅ 订阅配置验证通过');
+      await _validateClashConfig(normalized.content);
 
       // 创建并保存 Profile
       final profile = Profile.normal(label: label, url: persistUrl ? url : '');
@@ -132,6 +121,62 @@ class SubscriptionDownloader {
       throw Exception('HTTP请求失败: ${e.message}');
     } catch (e) {
       _logger.error('订阅下载失败', _maskSensitiveText(e));
+      rethrow;
+    }
+  }
+
+  /// 从 secure-v2 中间件返回的 YAML 内容创建 Profile。
+  ///
+  /// 这个入口不接收、不保存真实 subscribe_url，供 CloudGap 生产 secure_proxy
+  /// 模式复用现有 Clash/Mihomo 校验和 profile 保存逻辑。
+  static Future<Profile> profileFromContent(
+    String content, {
+    required String label,
+    String? contentType,
+    String? userAgentLabel,
+    SubscriptionInfo? subscriptionInfo,
+  }) async {
+    try {
+      if (content.trim().isEmpty) {
+        throw Exception('订阅配置为空');
+      }
+      final lower = content.trimLeft().toLowerCase();
+      if (lower.startsWith('<!doctype html') || lower.startsWith('<html')) {
+        throw Exception('订阅接口返回了 HTML 页面，请检查账号状态或服务配置');
+      }
+
+      final normalized = normalizeSubscriptionConfig(content);
+      final result = _DownloadResult(
+        content: content,
+        connectionType: 'secure-v2',
+        label: label,
+        subscriptionInfo: subscriptionInfo,
+        bytes: utf8.encode(content),
+        statusCode: 200,
+        contentType: contentType,
+        userAgentLabel: _safeUserAgentLabel(userAgentLabel),
+      );
+      _logContentSummary(result, normalized);
+      for (final repairedGroup in normalized.repairedGroups) {
+        _logger.warning('修复缺失 proxy-group 引用：$repairedGroup');
+      }
+      if (!normalized.hasUsableNodeSource) {
+        _throwNoUsableNodeError(content);
+      }
+
+      await _validateClashConfig(normalized.content);
+
+      final profile = Profile.normal(label: label, url: '');
+      final savedProfile = await profile.saveFileWithString(normalized.content);
+      final finalProfile = savedProfile.copyWith(
+        label: label,
+        subscriptionInfo: subscriptionInfo,
+        lastUpdateDate: DateTime.now(),
+      );
+      _logger.info('✅ 安全订阅配置保存成功: ${finalProfile.label}');
+      return finalProfile;
+    } catch (e) {
+      _logger.error('安全订阅内容处理失败', _maskSensitiveText(e));
       rethrow;
     }
   }
@@ -456,6 +501,23 @@ class SubscriptionDownloader {
       'password': password,
     };
   }
+
+  static Future<void> _validateClashConfig(String content) async {
+    final validationMessage = await clashCore.validateConfig(content);
+    if (validationMessage.isNotEmpty) {
+      throw Exception('配置验证失败: $validationMessage');
+    }
+    _logger.info('✅ 订阅配置验证通过');
+  }
+
+  static void _throwNoUsableNodeError(String content) {
+    final summary = SubscriptionContentSummary.from(content);
+    if (summary.hasBase64LikeContent ||
+        summary.protocolCounts.values.any((count) => count > 0)) {
+      throw Exception('订阅接口未返回 Clash/Mihomo 格式，请检查 User-Agent 或订阅转换');
+    }
+    throw Exception('订阅接口未返回 Clash/Mihomo 节点');
+  }
 }
 
 SubscriptionConfigNormalizeResult normalizeSubscriptionConfig(String content) {
@@ -775,6 +837,13 @@ String _maskSensitiveText(Object? value) {
       return text.startsWith('https://') ? 'https********' : 'http********';
     },
   );
+}
+
+String _safeUserAgentLabel(String? userAgent) {
+  if (userAgent == null || userAgent.trim().isEmpty) {
+    return 'secure-v2';
+  }
+  return SubscriptionDownloadOptions(userAgent: userAgent).safeUserAgentLabel;
 }
 
 void _logContentSummary(

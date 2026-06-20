@@ -74,6 +74,65 @@ class ProfileImportNotifier extends StateNotifier<ImportState> {
     }
   }
 
+  Future<bool> importSubscriptionContent(
+    String content, {
+    String? source,
+    String? contentType,
+    String? userAgentLabel,
+  }) async {
+    _logger.info(
+      '开始导入安全订阅内容: length=${content.length}, '
+      'source: ${source ?? "default"}',
+    );
+
+    state = state.copyWith(
+      status: ImportStatus.downloading,
+      isImporting: true,
+      progress: 0.0,
+      message: '开始导入订阅',
+      currentUrl: '',
+    );
+
+    try {
+      final importService = _ref.read(xboardProfileImportServiceProvider);
+      final result = await importService.importSubscriptionContent(
+        content,
+        source: source,
+        contentType: contentType,
+        userAgentLabel: userAgentLabel,
+        onProgress: (status, progress, message) {
+          state = state.copyWith(
+            status: status,
+            progress: progress,
+            message: message,
+          );
+        },
+      );
+
+      state = state.copyWith(
+        status: result.isSuccess ? ImportStatus.success : ImportStatus.failed,
+        isImporting: false,
+        progress: result.isSuccess ? 1.0 : 0.0,
+        message: result.isSuccess ? '导入成功' : result.errorMessage ?? '导入失败',
+        lastSuccessTime: result.isSuccess ? DateTime.now() : null,
+        lastResult: result,
+        currentUrl: '',
+      );
+
+      return result.isSuccess;
+    } catch (e) {
+      _logger.error('安全订阅内容导入失败', _maskSensitiveText(e));
+      state = state.copyWith(
+        status: ImportStatus.failed,
+        isImporting: false,
+        progress: 0.0,
+        message: '导入失败，请稍后重试',
+        currentUrl: '',
+      );
+      return false;
+    }
+  }
+
   Future<bool> retryLastImport() async {
     final url = state.currentUrl;
     if (url == null || url.isEmpty) {

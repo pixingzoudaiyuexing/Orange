@@ -99,6 +99,31 @@ class WyxSubscribeInfo {
   }
 }
 
+class WyxSubscriptionProfile {
+  final String provider;
+  final String format;
+  final String content;
+  final String? contentType;
+  final String? uaUsed;
+  final String? source;
+
+  const WyxSubscriptionProfile({
+    required this.provider,
+    required this.format,
+    required this.content,
+    this.contentType,
+    this.uaUsed,
+    this.source,
+  });
+
+  @override
+  String toString() {
+    return 'WyxSubscriptionProfile(provider: $provider, format: $format, '
+        'contentLength: ${content.length}, contentType: $contentType, '
+        'uaUsed: $uaUsed, source: $source)';
+  }
+}
+
 class WyxPlanInfo {
   final int? id;
   final int? groupId;

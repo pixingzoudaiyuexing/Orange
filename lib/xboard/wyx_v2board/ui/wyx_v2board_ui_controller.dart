@@ -7,6 +7,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/security/security.dart';
 import 'package:fl_clash/state.dart';
+import 'package:fl_clash/xboard/config/xboard_config.dart';
 
 import '../../core/core.dart';
 import '../../domain/domain.dart';
@@ -116,7 +117,6 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       final userInfo = results[0] as WyxUserInfo;
       final subscribeInfo = results[1] as WyxSubscribeInfo;
 
-      final rawSubscribeUrl = subscribeInfo.subscribeUrl ?? '';
       final subscription = WyxV2BoardDomainMapper.subscription(subscribeInfo);
       final safeSubscription = subscription.copyWith(
         subscribeUrl: '',
@@ -131,12 +131,16 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       _publishHomeData(user: user, subscription: safeSubscription);
       state = state.copyWith(isLoading: false, errorMessage: null);
 
-      if (importSubscription && rawSubscribeUrl.isNotEmpty) {
-        _logger.info(
-          'wyx_v2board importing subscription URL: '
-          '${_maskSensitiveText(rawSubscribeUrl)}',
+      if (importSubscription) {
+        final fallbackSubscribeUrl = _shouldUseSecureProxySubscription()
+            ? ''
+            : subscribeInfo.subscribeUrl ?? '';
+        unawaited(
+          _importSubscriptionProfile(
+            adapter: adapter,
+            fallbackSubscribeUrl: fallbackSubscribeUrl,
+          ),
         );
-        unawaited(_importSubscriptionProfile(rawSubscribeUrl));
       }
     } catch (error) {
       state = state.copyWith(
@@ -238,16 +242,44 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
     state = state.clear();
   }
 
-  Future<void> _importSubscriptionProfile(String subscribeUrl) async {
+  Future<void> _importSubscriptionProfile({
+    required WyxV2BoardAdapterApi adapter,
+    String fallbackSubscribeUrl = '',
+  }) async {
     try {
-      final imported = await _ref
-          .read(profileImportProvider.notifier)
-          .importSubscription(
-            subscribeUrl,
-            persistUrl: false,
-            source: wyxV2BoardProfileSource,
-            allowEncryptedService: false,
-          );
+      final notifier = _ref.read(profileImportProvider.notifier);
+      bool imported;
+      if (_shouldUseSecureProxySubscription()) {
+        final provider = _subscriptionProvider();
+        _logger.info(
+          'wyx_v2board importing subscription via secure-v2 proxy: '
+          'provider=$provider',
+        );
+        final profile = await adapter.getMihomoSubscriptionProfile(
+          provider: provider,
+        );
+        imported = await notifier.importSubscriptionContent(
+          profile.content,
+          source: wyxV2BoardProfileSource,
+          contentType: profile.contentType,
+          userAgentLabel: profile.uaUsed,
+        );
+      } else {
+        if (fallbackSubscribeUrl.isEmpty) {
+          _logger.warning('wyx_v2board direct subscription URL is empty');
+          return;
+        }
+        _logger.warning(
+          'wyx_v2board importing subscription via direct URL fallback: '
+          '${_maskSensitiveText(fallbackSubscribeUrl)}',
+        );
+        imported = await notifier.importSubscription(
+          fallbackSubscribeUrl,
+          persistUrl: false,
+          source: wyxV2BoardProfileSource,
+          allowEncryptedService: false,
+        );
+      }
       if (!imported) {
         _logger.warning('wyx_v2board subscription profile import failed');
       }
@@ -269,13 +301,16 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       if (!adapter.isLoggedIn) {
         return;
       }
-      final subscribe = await adapter.getSubscribeInfo();
-      final subscribeUrl = subscribe.subscribeUrl ?? '';
-      if (subscribeUrl.isEmpty) {
-        return;
-      }
       _logger.info('wyx_v2board restored session requires profile import');
-      await _importSubscriptionProfile(subscribeUrl);
+      if (_shouldUseSecureProxySubscription()) {
+        await _importSubscriptionProfile(adapter: adapter);
+      } else {
+        final subscribe = await adapter.getSubscribeInfo();
+        await _importSubscriptionProfile(
+          adapter: adapter,
+          fallbackSubscribeUrl: subscribe.subscribeUrl ?? '',
+        );
+      }
     } catch (error) {
       _logger.warning(
         'wyx_v2board restored session profile import skipped: '
@@ -368,6 +403,24 @@ class WyxV2BoardUiController extends StateNotifier<WyxV2BoardUiDataState> {
       return '***${at >= 0 ? email.substring(at) : ''}';
     }
     return '${email[0]}***${email.substring(at)}';
+  }
+
+  bool _shouldUseSecureProxySubscription() {
+    final mode = XBoardConfig.isInitialized
+        ? XBoardConfig.subscriptionFetchMode
+        : '';
+    if (mode == 'direct_url') {
+      return false;
+    }
+    return true;
+  }
+
+  String _subscriptionProvider() {
+    if (!XBoardConfig.isInitialized) {
+      return 'mihomo';
+    }
+    final provider = XBoardConfig.subscriptionProvider.trim();
+    return provider.isEmpty ? 'mihomo' : provider;
   }
 }
 

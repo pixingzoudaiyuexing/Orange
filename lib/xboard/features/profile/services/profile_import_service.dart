@@ -28,6 +28,14 @@ abstract class ProfileImportServiceApi {
     bool allowEncryptedService = true,
   });
 
+  Future<ImportResult> importSubscriptionContent(
+    String content, {
+    Function(ImportStatus, double, String?)? onProgress,
+    String? source,
+    String? contentType,
+    String? userAgentLabel,
+  });
+
   Future<ImportResult> importSubscriptionWithRetry(
     String url, {
     Function(ImportStatus, double, String?)? onProgress,
@@ -54,6 +62,14 @@ typedef ProfileDownloader =
       required bool allowEncryptedService,
     });
 
+typedef ProfileContentBuilder =
+    Future<Profile> Function(
+      String content, {
+      required String label,
+      String? contentType,
+      String? userAgentLabel,
+    });
+
 typedef ProfileApplyRunner = Future<void> Function();
 
 typedef ProfileEffectCleaner = FutureOr<void> Function(String profileId);
@@ -61,6 +77,7 @@ typedef ProfileEffectCleaner = FutureOr<void> Function(String profileId);
 class XBoardProfileImportService implements ProfileImportServiceApi {
   final Ref _ref;
   final ProfileDownloader? _profileDownloader;
+  final ProfileContentBuilder? _profileContentBuilder;
   final ProfileApplyRunner? _profileApplyRunner;
   final ProfileEffectCleaner? _profileEffectCleaner;
   bool _isImporting = false;
@@ -70,9 +87,11 @@ class XBoardProfileImportService implements ProfileImportServiceApi {
   XBoardProfileImportService(
     this._ref, {
     ProfileDownloader? profileDownloader,
+    ProfileContentBuilder? profileContentBuilder,
     ProfileApplyRunner? profileApplyRunner,
     ProfileEffectCleaner? profileEffectCleaner,
   }) : _profileDownloader = profileDownloader,
+       _profileContentBuilder = profileContentBuilder,
        _profileApplyRunner = profileApplyRunner,
        _profileEffectCleaner = profileEffectCleaner;
 
@@ -187,6 +206,76 @@ class XBoardProfileImportService implements ProfileImportServiceApi {
       errorMessage: '多次重试后仍然失败',
       errorType: ImportErrorType.networkError,
     );
+  }
+
+  @override
+  Future<ImportResult> importSubscriptionContent(
+    String content, {
+    Function(ImportStatus, double, String?)? onProgress,
+    String? source,
+    String? contentType,
+    String? userAgentLabel,
+  }) async {
+    if (_isImporting) {
+      return ImportResult.failure(
+        errorMessage: '正在导入中，请稍候',
+        errorType: ImportErrorType.unknownError,
+      );
+    }
+    _isImporting = true;
+    final stopwatch = Stopwatch()..start();
+    try {
+      _logger.info(
+        '开始导入安全订阅配置: length=${content.length}, '
+        'source: ${source ?? "default"}, contentType: ${contentType ?? "unknown"}',
+      );
+
+      onProgress?.call(ImportStatus.downloading, 0.3, '获取安全订阅配置');
+      final profile =
+          await _buildProfileFromContent(
+            content,
+            source: source,
+            contentType: contentType,
+            userAgentLabel: userAgentLabel,
+          ).timeout(
+            downloadTimeout,
+            onTimeout: () {
+              throw TimeoutException('导入超时', downloadTimeout);
+            },
+          );
+      onProgress?.call(ImportStatus.validating, 0.6, '验证配置格式');
+
+      onProgress?.call(ImportStatus.adding, 0.7, '应用订阅配置');
+      await _addAndApplyProfile(profile);
+
+      onProgress?.call(ImportStatus.cleaning, 0.9, '替换旧的订阅配置');
+      await _cleanOldGeneratedProfiles(
+        source: source,
+        excludeProfileId: profile.id,
+      );
+      _restoreGeneratedProfileLabel(profileId: profile.id, source: source);
+
+      stopwatch.stop();
+      onProgress?.call(ImportStatus.success, 1.0, '导入成功');
+      _logger.info('安全订阅配置导入成功，耗时: ${stopwatch.elapsedMilliseconds}ms');
+      return ImportResult.success(
+        profile: profile,
+        duration: stopwatch.elapsed,
+      );
+    } catch (e) {
+      stopwatch.stop();
+      _logger.error('安全订阅配置导入失败', _maskSensitiveText(e));
+      final errorType = _classifyError(e);
+      final userMessage = _getUserFriendlyErrorMessage(e, errorType);
+      onProgress?.call(ImportStatus.failed, 0.0, userMessage);
+      return ImportResult.failure(
+        errorMessage: userMessage,
+        errorType: errorType,
+        duration: stopwatch.elapsed,
+      );
+    } finally {
+      _isImporting = false;
+    }
   }
 
   Future<void> _cleanOldUrlProfiles({String? excludeProfileId}) async {
@@ -331,6 +420,38 @@ class XBoardProfileImportService implements ProfileImportServiceApi {
       throw Exception('网络连接失败: ${e.message}');
     } on HttpException catch (e) {
       throw Exception('HTTP请求失败: ${e.message}');
+    } catch (e) {
+      if (e.toString().contains('validateConfig')) {
+        throw Exception('配置文件格式错误: $e');
+      }
+      throw Exception('下载配置失败: $e');
+    }
+  }
+
+  Future<Profile> _buildProfileFromContent(
+    String content, {
+    String? source,
+    String? contentType,
+    String? userAgentLabel,
+  }) async {
+    try {
+      final builder = _profileContentBuilder;
+      if (builder != null) {
+        return await builder(
+          content,
+          label: _profileLabel(source),
+          contentType: contentType,
+          userAgentLabel: userAgentLabel,
+        );
+      }
+      return await SubscriptionDownloader.profileFromContent(
+        content,
+        label: _profileLabel(source),
+        contentType: contentType,
+        userAgentLabel: userAgentLabel,
+      );
+    } on TimeoutException catch (e) {
+      throw Exception('导入超时: ${e.message}');
     } catch (e) {
       if (e.toString().contains('validateConfig')) {
         throw Exception('配置文件格式错误: $e');

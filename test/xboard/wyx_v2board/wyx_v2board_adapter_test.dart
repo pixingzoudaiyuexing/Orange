@@ -103,6 +103,81 @@ void main() {
       },
     );
 
+    test(
+      'getMihomoSubscriptionProfile requests middleware proxy without subscribe_url',
+      () async {
+        const yaml = '''
+proxies:
+  - name: hk-01
+    type: vless
+proxy-groups:
+  - name: CloudGap
+    type: select
+    proxies:
+      - hk-01
+rules:
+  - MATCH,CloudGap
+''';
+        final client = _FakeWyxSecureClient({
+          _key('POST', WyxV2BoardApi.login): _loginOk(),
+          _key('POST', WyxV2BoardApi.subscriptionMihomo): _ok({
+            'data': {
+              'provider': 'mihomo',
+              'format': 'yaml',
+              'content': yaml,
+              'content_type': 'text/yaml',
+              'ua_used': 'Clash.Meta',
+              'source': 'middleware_subscription_proxy',
+            },
+          }),
+        });
+        final adapter = WyxV2BoardAdapter(client: client);
+
+        await adapter.login('user@example.com', 'secret');
+        final profile = await adapter.getMihomoSubscriptionProfile();
+
+        final call = client.calls.last;
+        expect(call.method, 'POST');
+        expect(call.path, WyxV2BoardApi.subscriptionMihomo);
+        expect(call.headers['authorization'], 'jwt-auth-data');
+        expect(call.body, {
+          'backend_type': 'wyx_v2board',
+          'provider': 'mihomo',
+          'format': 'clash',
+          'user_agent_preference': ['Clash.Meta', 'mihomo', 'ClashforWindows'],
+        });
+        expect(call.toString(), isNot(contains('subscribe_url')));
+        expect(call.toString(), isNot(contains('token=')));
+        expect(profile.content, yaml);
+        expect(profile.uaUsed, 'Clash.Meta');
+        expect(profile.toString(), contains('contentLength:'));
+        expect(profile.toString(), isNot(contains(yaml)));
+      },
+    );
+
+    test('getMihomoSubscriptionProfile rejects empty content', () async {
+      final client = _FakeWyxSecureClient({
+        _key('POST', WyxV2BoardApi.login): _loginOk(),
+        _key('POST', WyxV2BoardApi.subscriptionMihomo): _ok({
+          'data': {'provider': 'mihomo', 'format': 'yaml', 'content': ''},
+        }),
+      });
+      final adapter = WyxV2BoardAdapter(client: client);
+
+      await adapter.login('user@example.com', 'secret');
+
+      await expectLater(
+        adapter.getMihomoSubscriptionProfile(),
+        throwsA(
+          isA<WyxV2BoardException>().having(
+            (error) => error.code,
+            'code',
+            WyxV2BoardErrorCode.invalidResponse,
+          ),
+        ),
+      );
+    });
+
     test('plan.content parse failures do not crash', () async {
       final client = _FakeWyxSecureClient({
         _key('POST', WyxV2BoardApi.login): _loginOk(),
@@ -372,4 +447,10 @@ class _RecordedCall {
     required this.query,
     required this.headers,
   });
+
+  @override
+  String toString() {
+    return '_RecordedCall(method: $method, path: $path, '
+        'headers: [MASKED], query: $query, body: $body)';
+  }
 }

@@ -60,7 +60,7 @@ class SubscriptionUrlInfo extends ConfigEntry {
   factory SubscriptionUrlInfo.fromJson(Map<String, dynamic> json) {
     final endpointsMap = <String, SubscriptionEndpoint>{};
     final endpointsJson = json['endpoints'] as Map<String, dynamic>? ?? {};
-    
+
     endpointsJson.forEach((key, value) {
       if (value is Map<String, dynamic>) {
         endpointsMap[key] = SubscriptionEndpoint.fromJson(value);
@@ -80,7 +80,8 @@ class SubscriptionUrlInfo extends ConfigEntry {
     try {
       return endpoints.values.firstWhere((endpoint) => endpoint.isEncrypt);
     } catch (e) {
-      return endpoints['v2'] ?? (endpoints.isNotEmpty ? endpoints.values.first : null);
+      return endpoints['v2'] ??
+          (endpoints.isNotEmpty ? endpoints.values.first : null);
     }
   }
 
@@ -89,7 +90,8 @@ class SubscriptionUrlInfo extends ConfigEntry {
     try {
       return endpoints.values.firstWhere((endpoint) => !endpoint.isEncrypt);
     } catch (e) {
-      return endpoints['v1'] ?? (endpoints.isNotEmpty ? endpoints.values.first : null);
+      return endpoints['v1'] ??
+          (endpoints.isNotEmpty ? endpoints.values.first : null);
     }
   }
 
@@ -104,8 +106,9 @@ class SubscriptionUrlInfo extends ConfigEntry {
     if (endpoint == null) return url;
 
     final path = endpoint.path.replaceAll('{token}', token);
-    final baseUrl = url.endsWith('/') ? '$url${path.startsWith('/') ? path.substring(1) : path}'
-                                      : '$url${path.startsWith('/') ? path : '/$path'}';
+    final baseUrl = url.endsWith('/')
+        ? '$url${path.startsWith('/') ? path.substring(1) : path}'
+        : '$url${path.startsWith('/') ? path : '/$path'}';
 
     // 添加 FlClash 标识参数
     final separator = baseUrl.contains('?') ? '&' : '?';
@@ -133,25 +136,41 @@ class SubscriptionInfo {
   final List<SubscriptionUrlInfo> urls;
   final bool enableEncrypt; // 是否启用加密订阅
   final String preferredEncryptVersion; // 首选加密版本
+  final String fetchMode; // secure_proxy or direct_url
+  final String provider; // mihomo, clash, etc.
 
   const SubscriptionInfo({
     required this.urls,
     this.enableEncrypt = true,
     this.preferredEncryptVersion = 'v2',
+    this.fetchMode = '',
+    this.provider = 'mihomo',
   });
 
   /// 从JSON创建订阅配置
   factory SubscriptionInfo.fromJson(Map<String, dynamic> json) {
     final urlsList = json['urls'] as List<dynamic>? ?? [];
-    
+
     return SubscriptionInfo(
       urls: urlsList
-          .map((item) => SubscriptionUrlInfo.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) =>
+                SubscriptionUrlInfo.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
       enableEncrypt: json['enableEncrypt'] as bool? ?? true,
-      preferredEncryptVersion: json['preferredEncryptVersion'] as String? ?? 'v2',
+      preferredEncryptVersion:
+          json['preferredEncryptVersion'] as String? ?? 'v2',
+      fetchMode: _string(json['fetch_mode'] ?? json['fetchMode']),
+      provider: _string(json['provider']).isNotEmpty
+          ? _string(json['provider'])
+          : 'mihomo',
     );
   }
+
+  bool get usesSecureProxy => fetchMode.trim().toLowerCase() == 'secure_proxy';
+
+  bool get usesDirectUrl => fetchMode.trim().toLowerCase() == 'direct_url';
 
   /// 获取第一个可用的订阅URL
   String? get firstUrl {
@@ -176,7 +195,7 @@ class SubscriptionInfo {
   String? buildSubscriptionUrl(String token, {bool forceEncrypt = false}) {
     if (urls.isEmpty) return null;
 
-    final targetUrl = forceEncrypt || enableEncrypt 
+    final targetUrl = forceEncrypt || enableEncrypt
         ? firstEncryptUrl ?? urls.first
         : urls.first;
 
@@ -189,11 +208,23 @@ class SubscriptionInfo {
       'urls': urls.map((url) => url.toJson()).toList(),
       'enableEncrypt': enableEncrypt,
       'preferredEncryptVersion': preferredEncryptVersion,
+      if (fetchMode.isNotEmpty) 'fetch_mode': fetchMode,
+      'provider': provider,
     };
   }
 
   @override
   String toString() {
-    return 'SubscriptionInfo(urls: ${urls.length}, encrypt: $enableEncrypt)';
+    return 'SubscriptionInfo(urls: ${urls.length}, encrypt: $enableEncrypt, fetchMode: $fetchMode, provider: $provider)';
   }
+}
+
+String _string(Object? value) {
+  if (value is String) {
+    return value.trim();
+  }
+  if (value == null) {
+    return '';
+  }
+  return '$value'.trim();
 }

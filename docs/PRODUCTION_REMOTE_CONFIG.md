@@ -88,7 +88,8 @@ the local YAML source URL must point only to this COS JSON document.
     ]
   },
   "subscription": {
-    "prefer_encrypt": false
+    "fetch_mode": "secure_proxy",
+    "provider": "mihomo"
   },
   "metadata": {
     "sources": ["cos"],
@@ -103,6 +104,29 @@ the local YAML source URL must point only to this COS JSON document.
 
 The current parser reads CloudGap online support from the current panel item
 only. Do not add top-level `online_support` or legacy `onlineSupport` blocks.
+
+## Subscription Fetch Mode
+
+CloudGap production should fetch Clash/Mihomo YAML through secure-v2 security
+middleware, not by letting the app request the real panel `subscribe_url`.
+
+Recommended COS shape:
+
+```json
+{
+  "subscription": {
+    "fetch_mode": "secure_proxy",
+    "provider": "mihomo"
+  }
+}
+```
+
+With `fetch_mode=secure_proxy`, the app calls the security middleware through
+the existing secure-v2 encrypted proxy and asks for `/api/v1/user/subscription/mihomo`.
+The middleware uses the current authenticated user to obtain and download the
+subscription on the server side, then returns YAML content to the app. Do not put
+full `subscribe_url`, backend domains, subscription tokens, or user credentials
+in COS JSON.
 
 ## Crisp Online Support
 

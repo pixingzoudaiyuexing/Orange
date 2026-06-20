@@ -2,6 +2,7 @@ class WyxV2BoardApi {
   static const login = '/api/v1/passport/auth/login';
   static const userInfo = '/api/v1/user/info';
   static const subscribeInfo = '/api/v1/user/getSubscribe';
+  static const subscriptionMihomo = '/api/v1/user/subscription/mihomo';
   static const nodeList = '/api/v1/user/server/fetch';
   static const planList = '/api/v1/user/plan/fetch';
   static const noticeList = '/api/v1/user/notice/fetch';

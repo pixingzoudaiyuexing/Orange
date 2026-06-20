@@ -49,6 +49,10 @@ void main() {
                 },
               ],
             },
+            'subscription': {
+              'fetch_mode': 'secure_proxy',
+              'provider': 'mihomo',
+            },
           }),
         ),
       );
@@ -59,10 +63,39 @@ void main() {
       expect(result.firstSuccessfulSource, 'cos');
       expect(result.firstSuccessfulData?['panelType'], 'v2board');
       expect(
+        result.firstSuccessfulData?['subscription']['fetch_mode'],
+        'secure_proxy',
+      );
+      expect(
         result
             .firstSuccessfulData?['panels']['mihomo'][0]['metadata']['secure_v2']['security_base_url'],
         'https://security.example.com',
       );
+    });
+
+    test('parses clean secure_proxy subscription structure', () {
+      final parser = ConfigurationParser();
+
+      final parsed = parser.parseFromJson({
+        'version': 1,
+        'panelType': 'v2board',
+        'panels': {
+          'mihomo': [
+            {
+              'name': 'production-wyx-v2board',
+              'description': 'Production wyx_v2board via secure-v2',
+              'url': 'https://security.example.com',
+            },
+          ],
+        },
+        'subscription': {'fetch_mode': 'secure_proxy', 'provider': 'mihomo'},
+      }, 'mihomo');
+
+      expect(parsed.subscription?.usesSecureProxy, true);
+      expect(parsed.subscription?.fetchMode, 'secure_proxy');
+      expect(parsed.subscription?.provider, 'mihomo');
+      expect(parsed.subscription?.urls, isEmpty);
+      expect(parsed.toString(), contains('subscription: 0'));
     });
 
     test(

@@ -46,6 +46,19 @@ class WyxV2BoardMapper {
     );
   }
 
+  static WyxSubscriptionProfile subscriptionProfile(Object? value) {
+    final json = map(value);
+    final content = string(json['content']) ?? '';
+    return WyxSubscriptionProfile(
+      provider: string(json['provider']) ?? 'mihomo',
+      format: string(json['format']) ?? 'yaml',
+      content: content,
+      contentType: string(json['content_type']),
+      uaUsed: string(json['ua_used']),
+      source: string(json['source']),
+    );
+  }
+
   static WyxPlanInfo planInfo(Object? value) {
     final json = map(value);
     final content = string(json['content']);
